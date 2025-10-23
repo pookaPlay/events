@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wire Field Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            z-index: 100;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+        }
+        input[type="range"] {
+            width: 150px;
+        }
+        button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+        .icon-button {
+            width: 34px;
+            height: 34px;
+            padding: 4px;
+            margin: 2px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #333;
+            border: 1px solid #555;
+            cursor: pointer;
+            color: white;
+        }
+        .icon-button svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <div class="control-group">
+            <label>Speed:</label>
+            <input type="range" id="speedSlider" min="0" max="20" value="5" step="0.5">
+            <span id="speedValue">5.0</span>
+        </div>
+        <div class="control-group">
+            <label>Wire Density:</label>
+            <input type="range" id="densitySlider" min="10" max="200" value="50" step="5">
+            <span id="densityValue">50</span>
+        </div>
+        <div class="control-group">
+            <label>Wire Length:</label>
+            <input type="range" id="lengthSlider" min="50" max="5000" value="500" step="10">
+            <span id="lengthValue">200</span>
+        </div>
+        <div class="control-group">
+            <label>Background Stars:</label>
+            <input type="range" id="starsSlider" min="0" max="1000" value="200" step="10">
+            <span id="starsValue">200</span>
+        </div>
+        <div class="control-group">
+            <label>Points per Line:</label>
+            <input type="range" id="lineStyleSlider" min="2" max="50" value="10" step="1">
+            <span id="lineStyleValue">10</span>
+        </div>
+        <div class="control-group">
+            <label>Right Angles Only:</label>
+            <input type="checkbox" id="rightAnglesCheckbox">
+        </div>
+        <div class="control-group">
+            <label>Random Point Spacing:</label>
+            <input type="checkbox" id="randomSpacingCheckbox">
+        </div>
+        <div class="control-group">
+            <label>Extended Lines:</label>
+            <input type="checkbox" id="extendedLinesCheckbox">
+        </div>
+        <div class="control-group">
+            <label>Show Scope:</label>
+            <input type="checkbox" id="showScopeCheckbox" checked>
+        </div>
+        <div class="control-group">
+            <button class="icon-button" onclick="playBackward()" title="Play Backward" aria-label="Play Backward">
+                <!-- play backward icon -->
+                <svg viewBox="0 0 24 24"><path d="M16 5v14l-11-7z"/></svg>
+            </button>
+            <button class="icon-button" onclick="stepBackward()" title="Step Backward" aria-label="Step Backward">
+                <!-- step backward icon -->
+                <svg viewBox="0 0 24 24"><path d="M11 19V5l-8 7 8 7zm2-7v7h2V12h-2z"/></svg>
+            </button>
+            <button id="pauseBtn" class="icon-button" onclick="togglePause()" title="Pause/Resume" aria-label="Pause or Resume">
+                <!-- pause/play icon (dynamic) -->
+                <svg id="pauseIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="icon-button" onclick="stepForward()" title="Step Forward" aria-label="Step Forward">
+                <!-- step forward icon -->
+                <svg viewBox="0 0 24 24"><path d="M13 5v14l8-7-8-7zm-2 7v7h-2v-7h2z"/></svg>
+            </button>
+            <button class="icon-button" onclick="playForward()" title="Play Forward" aria-label="Play Forward">
+                <!-- play forward icon -->
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>                                    
+        </div>
+        <div class="control-group">
+            <label style="margin-left:8px;">Step Size:</label>
+            <input id="stepSizeSlider" type="range" min="0.1" max="20" step="0.1" value="5">
+            <span id="stepSizeValue">5.0</span>
+        </div>
+        <div class="control-group">
+            <button onclick="resetCamera()">Reset View</button>            
+            <button onclick="saveFrame()">Save Image</button>
+            <button onclick="saveEvents()">Save Events</button>
+        </div>
+        <div class="control-group">
+            <div id="cameraPosition" style="margin-bottom: 10px; font-family: monospace;">
+                Camera: X: 0.0 Y: 0.0 Z: 0.0
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let wires = [];
+        let stars = [];
+        let brokenPoints = []; // Array to store points that have been broken off
+        let cameraX = 0;
+        let cameraY = 0;
+        let cameraZ = 0;
+        let speed = 5;
+        let wireDensity = 50;
+        let wireLength = 200;
+    let moveSpeed = 10; // Speed of WASD movement
+    let isPaused = false;
+    let playback = 1; // 1 = forward, -1 = backward, 0 = paused
+        let rotationX = 0;
+        let rotationY = 0;
+        let starCount = 200;
+        let pointsPerLine = 10; // Number of points per line segment
+        let rightAnglesOnly = false;
+        let randomSpacing = false;
+        let showExtendedLines = false;
+        let events = []; // Store event camera data
+        let eventThreshold = 0.1; // Minimum change to trigger event
+        
+    // History buffer for deterministic playback
+    let history = []; // array of snapshots
+    let historyIndex = -1; // current index in history
+    const maxHistory = 2000; // max snapshot count to keep
+    let stepDelta = 5; // default delta for stepping (can be changed by slider)
+
+    // Targeting scope and laser state
+    let showScope = true;
+    let laserActive = false;
+    let laserStartTime = 0;
+    const laserDuration = 200; // ms
+    const laserColor = [0, 255, 0];
+    const laserHitRadius = 8; // pixels
+
+    // transient highlights computed when laser fires
+    let laserHighlights = [];
+
+        class Wire {
+            constructor() {
+                // Random position in 3D space
+                this.x = random(-1000, 1000);
+                this.y = random(-1000, 1000);
+                this.z = random(500, 2000);
+                
+                // Random orientation (direction vector)
+                if (rightAnglesOnly) {
+                    // Constrain to right angles (perpendicular to travel direction)
+                    // Random choice between horizontal (dx=0) or vertical (dy=0) orientations
+                    if (random() < 0.5) {
+                        // Horizontal wire (parallel to X-axis)
+                        this.dx = random() < 0.5 ? 1 : -1;
+                        this.dy = 0;
+                        this.dz = 0;
+                    } else {
+                        // Vertical wire (parallel to Y-axis)
+                        this.dx = 0;
+                        this.dy = random() < 0.5 ? 1 : -1;
+                        this.dz = 0;
+                    }
+                } else {
+                    // Random orientation in all directions
+                    this.dx = random(-1, 1);
+                    this.dy = random(-1, 1);
+                    this.dz = random(-1, 1);
+                    
+                    // Normalize direction vector
+                    let length = sqrt(this.dx * this.dx + this.dy * this.dy + this.dz * this.dz);
+                    this.dx /= length;
+                    this.dy /= length;
+                    this.dz /= length;
+                }
+                
+                // Wire properties
+                this.length = random(wireLength * 0.5, wireLength * 1.5);
+                this.thickness = 1; // Clean, thin lines
+                this.color = color(255, 255, 255); // Clean white lines
+                
+                // Calculate end points
+                this.endX = this.x + this.dx * this.length;
+                this.endY = this.y + this.dy * this.length;
+                this.endZ = this.z + this.dz * this.length;
+                
+                // Generate fixed random t values for this wire
+                this.tValues = [];
+                for (let i = 0; i < pointsPerLine; i++) {
+                    this.tValues.push(random(0, 1));
+                }
+                this.tValues.sort((a, b) => a - b); // Sort to maintain line order
+            }
+            
+            update(delta) {
+                // Move wire relative to camera by delta (positive moves toward camera)
+                this.z -= delta;
+                this.endZ -= delta;
+            }
+            
+            drawExtendedLine(startX, startY, endX, endY) {
+                // Set line style for extended lines
+                stroke(0, 255, 0, 100); // Semi-transparent green
+                strokeWeight(0.5);
+                
+                // Get the direction vector
+                let dx = endX - startX;
+                let dy = endY - startY;
+                
+                // Skip if points are identical
+                if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) {
+                    return;
+                }
+                
+                // Normalize the direction vector
+                let len = Math.sqrt(dx * dx + dy * dy);
+                dx /= len;
+                dy /= len;
+                
+                // Extend the line far beyond screen boundaries
+                let extendedLength = Math.max(width, height) * 2;
+                
+                // Calculate extended points
+                let extendedStart = {
+                    x: startX - dx * extendedLength,
+                    y: startY - dy * extendedLength
+                };
+                
+                let extendedEnd = {
+                    x: startX + dx * extendedLength,
+                    y: startY + dy * extendedLength
+                };
+                
+                // Draw the extended line
+                line(extendedStart.x, extendedStart.y, extendedEnd.x, extendedEnd.y);
+            }
+            
+            display() {
+                // Only draw if wire is in front of camera
+                if (this.z > 0) {
+                    if (randomSpacing) {
+                        // Random spacing: use pre-generated fixed t values
+                        for (let i = 0; i < pointsPerLine; i++) {
+                            let t = this.tValues[i];
+                            
+                            // Interpolate position along the line
+                            let x = this.x + (this.endX - this.x) * t;
+                            let y = this.y + (this.endY - this.y) * t;
+                            let z = this.z + (this.endZ - this.z) * t;
+                            
+                            // Project 3D point to 2D screen coordinates with proper perspective
+                            let scale = 200 / (z + 200);
+                            let screenX = (x + cameraX) * scale;
+                            let screenY = (y + cameraY) * scale;
+                            
+                            // Check if point is on screen
+                            if (abs(screenX) < width && abs(screenY) < height) {
+                                stroke(this.color);
+                                strokeWeight(this.thickness);
+                                point(screenX, screenY);
+                            }
+                        }
+                        
+                        // Draw extended line if enabled
+                        if (showExtendedLines && this.z > 0) {
+                            // Get direction vector in screen space
+                            let startScale = 200 / (this.z + 200);
+                            let endScale = 200 / (this.endZ + 200);
+                            
+                            let startPoint = {
+                                x: (this.x + cameraX) * startScale,
+                                y: (this.y + cameraY) * startScale
+                            };
+                            let endPoint = {
+                                x: (this.endX + cameraX) * endScale,
+                                y: (this.endY + cameraY) * endScale
+                            };
+
+                            // Only draw if at least one point is in front of the camera
+                            if (this.z > -200 || this.endZ > -200) {
+                                this.drawExtendedLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+                            }
+                        }
+                    } else {
+                        // Uniform spacing: evenly distributed points
+                        for (let i = 0; i < pointsPerLine; i++) {
+                            let t = i / (pointsPerLine - 1); // Interpolation parameter (0 to 1)
+                            
+                            // Interpolate position along the line
+                            let x = this.x + (this.endX - this.x) * t;
+                            let y = this.y + (this.endY - this.y) * t;
+                            let z = this.z + (this.endZ - this.z) * t;
+                            
+                            // Project 3D point to 2D screen coordinates with proper perspective
+                            let scale = 200 / (z + 200);
+                            let screenX = (x + cameraX) * scale;
+                            let screenY = (y + cameraY) * scale;
+                            
+                            // Check if point is on screen
+                            if (abs(screenX) < width && abs(screenY) < height) {
+                                stroke(this.color);
+                                strokeWeight(this.thickness);
+                                point(screenX, screenY);
+                            }
+                        }
+                        
+                        // Draw extended line if enabled
+                        if (showExtendedLines && this.z > 0) {
+                            // Get direction vector in screen space
+                            let startScale = 200 / (this.z + 200);
+                            let endScale = 200 / (this.endZ + 200);
+                            
+                            let startPoint = {
+                                x: (this.x + cameraX) * startScale,
+                                y: (this.y + cameraY) * startScale
+                            };
+                            let endPoint = {
+                                x: (this.endX + cameraX) * endScale,
+                                y: (this.endY + cameraY) * endScale
+                            };
+
+                            // Only draw if at least one point is in front of the camera
+                            if (this.z > -200 || this.endZ > -200) {
+                                this.drawExtendedLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        class BrokenPoint {
+            constructor(x, y, z, hitAngle) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                // Create more varied explosion patterns
+                const baseSpeed = random(2, 8); // Wider speed range
+                const spreadAngle = random(-PI, PI); // Full 360-degree variation
+                // Combine hit angle with spread for more varied directions
+                const finalAngle = hitAngle + spreadAngle;
+                // Add some random variation to the velocity components
+                this.vx = cos(finalAngle) * baseSpeed * random(0.5, 1.5);
+                this.vy = sin(finalAngle) * baseSpeed * random(0.5, 1.5);
+                this.vz = random(-3, 3); // More pronounced z-axis movement
+                this.rotation = random(TWO_PI);
+                this.rotationSpeed = random(-0.5, 0.5); // More rotation variation
+                this.lifetime = random(200, 255); // Varied lifetime for each particle
+            }
+
+            update(delta) {
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+                this.z += this.vz - delta; // Also apply normal z movement
+                
+                // Update rotation
+                this.rotation += this.rotationSpeed;
+                
+                // Fade out
+                this.lifetime -= 2;
+                
+                return this.lifetime > 0;
+            }
+
+            display() {
+                if (this.z > 0) {
+                    let scale = 200 / (this.z + 200);
+                    let screenX = (this.x + cameraX) * scale;
+                    let screenY = (this.y + cameraY) * scale;
+
+                    if (abs(screenX) < width && abs(screenY) < height) {
+                        push();
+                        stroke(255, 255, 255, this.lifetime);
+                        strokeWeight(1);
+                        translate(screenX, screenY);
+                        rotate(this.rotation);
+                        line(-2, -2, 2, 2);
+                        line(-2, 2, 2, -2);
+                        pop();
+                    }
+                }
+            }
+        }
+
+        class Star {
+            constructor() {
+                this.x = random(-2000, 2000);
+                this.y = random(-2000, 2000);
+                this.z = random(500, 3000);
+                this.brightness = random(100, 255);
+            }
+            
+            update(delta) {
+                // Move star relative to camera by delta
+                this.z -= delta;
+                
+                if (this.z < -500) {
+                    this.z = random(2000, 3000);
+                    this.x = random(-2000, 2000);
+                    this.y = random(-2000, 2000);
+                }
+            }
+            
+            display() {
+                if (this.z > 0) {
+                    let scale = 200 / (this.z + 200);
+                    let screenX = (this.x + cameraX) * scale;
+                    let screenY = (this.y + cameraY) * scale;
+                    
+                    if (abs(screenX) < width && abs(screenY) < height) {
+                        stroke(this.brightness);
+                        strokeWeight(1);
+                        point(screenX, screenY);
+                    }
+                }
+            }
+        }
+
+
+        // Handle keyboard input for camera movement
+        function handleKeyboard() {
+            if (keyIsDown(87)) { // W key
+                cameraY += moveSpeed;
+            }
+            if (keyIsDown(83)) { // S key
+                cameraY -= moveSpeed;
+            }
+            if (keyIsDown(65)) { // A key
+                cameraX += moveSpeed;
+            }
+            if (keyIsDown(68)) { // D key
+                cameraX -= moveSpeed;
+            }
+        }
+
+        function setup() {
+            let canvas = createCanvas(windowWidth, windowHeight);
+            canvas.parent(document.body);
+            
+            // Initialize wires
+            for (let i = 0; i < wireDensity; i++) {
+                wires.push(new Wire());
+            }
+            
+            // Initialize stars
+            for (let i = 0; i < 200; i++) {
+                stars.push(new Star());
+            }
+            
+            // Setup control event listeners
+            document.getElementById('speedSlider').addEventListener('input', function(e) {
+                speed = parseFloat(e.target.value);
+                document.getElementById('speedValue').textContent = speed.toFixed(1);
+            });
+            
+            document.getElementById('densitySlider').addEventListener('input', function(e) {
+                wireDensity = parseInt(e.target.value);
+                document.getElementById('densityValue').textContent = wireDensity;
+                regenerateWires();
+            });
+            
+            document.getElementById('lengthSlider').addEventListener('input', function(e) {
+                wireLength = parseInt(e.target.value);
+                document.getElementById('lengthValue').textContent = wireLength;
+                regenerateWires();
+            });
+            
+            document.getElementById('starsSlider').addEventListener('input', function(e) {
+                starCount = parseInt(e.target.value);
+                document.getElementById('starsValue').textContent = starCount;
+                regenerateStars();
+            });
+            
+            document.getElementById('lineStyleSlider').addEventListener('input', function(e) {
+                pointsPerLine = parseInt(e.target.value);
+                document.getElementById('lineStyleValue').textContent = pointsPerLine;
+            });
+            
+            document.getElementById('rightAnglesCheckbox').addEventListener('change', function(e) {
+                rightAnglesOnly = e.target.checked;
+                // Regenerate all wires with new constraint
+                regenerateWires();
+            });
+            
+            document.getElementById('randomSpacingCheckbox').addEventListener('change', function(e) {
+                randomSpacing = e.target.checked;
+            });
+
+            document.getElementById('extendedLinesCheckbox').addEventListener('change', function(e) {
+                showExtendedLines = e.target.checked;
+            });
+
+            document.getElementById('showScopeCheckbox').addEventListener('change', function(e) {
+                showScope = e.target.checked;
+            });
+
+            // Step size slider
+            const stepSlider = document.getElementById('stepSizeSlider');
+            const stepVal = document.getElementById('stepSizeValue');
+            stepSlider.addEventListener('input', function(e) {
+                stepDelta = parseFloat(e.target.value);
+                stepVal.textContent = stepDelta.toFixed(1);
+                // Keep keyboard pan speed (moveSpeed) in sync with step size
+                moveSpeed = stepDelta;
+            });
+
+            // Initialize moveSpeed to the slider's default value
+            moveSpeed = parseFloat(stepSlider.value);
+
+            // Push initial snapshot
+            pushHistorySnapshot();
+            // Initialize pause icon
+            setPauseIcon(playback === 1 ? 'pause' : 'play');
+        }
+
+        // Create a deep snapshot of the current scene state
+        function pushHistorySnapshot() {
+            // Trim history if needed
+            if (historyIndex < history.length - 1) {
+                // If we've rewound and then move forward, discard future states
+                history.splice(historyIndex + 1);
+            }
+
+            const snapshot = {
+                cameraX: cameraX,
+                cameraY: cameraY,
+                cameraZ: cameraZ,
+                wires: wires.map(w => ({ x: w.x, y: w.y, z: w.z, endX: w.endX, endY: w.endY, endZ: w.endZ, dx: w.dx, dy: w.dy, dz: w.dz, length: w.length, thickness: w.thickness, color: [red(w.color), green(w.color), blue(w.color)], tValues: [...w.tValues] })),
+                stars: stars.map(s => ({ x: s.x, y: s.y, z: s.z, brightness: s.brightness })),
+                brokenPoints: brokenPoints.map(p => ({ x: p.x, y: p.y, z: p.z, vx: p.vx, vy: p.vy, vz: p.vz, rotation: p.rotation, rotationSpeed: p.rotationSpeed, lifetime: p.lifetime })),
+                events: JSON.parse(JSON.stringify(events))
+            };
+
+            history.push(snapshot);
+            historyIndex = history.length - 1;
+
+            // Enforce max history length
+            if (history.length > maxHistory) {
+                history.shift();
+                historyIndex = history.length - 1;
+            }
+        }
+
+        function restoreSnapshot(index) {
+            if (index < 0 || index >= history.length) return false;
+            const snap = history[index];
+
+            cameraX = snap.cameraX;
+            cameraY = snap.cameraY;
+            cameraZ = snap.cameraZ;
+
+            // Restore wires and stars
+            wires = snap.wires.map(w => {
+                const nw = new Wire();
+                nw.x = w.x; nw.y = w.y; nw.z = w.z;
+                nw.endX = w.endX; nw.endY = w.endY; nw.endZ = w.endZ;
+                nw.dx = w.dx; nw.dy = w.dy; nw.dz = w.dz;
+                nw.length = w.length; nw.thickness = w.thickness;
+                nw.color = color(w.color[0], w.color[1], w.color[2]);
+                nw.tValues = [...w.tValues];
+                return nw;
+            });
+
+            // Restore broken points
+            brokenPoints = snap.brokenPoints.map(p => {
+                const bp = new BrokenPoint(p.x, p.y, p.z, 0); // Angle doesn't matter for restoration
+                bp.vx = p.vx;
+                bp.vy = p.vy;
+                bp.vz = p.vz;
+                bp.rotation = p.rotation;
+                bp.rotationSpeed = p.rotationSpeed;
+                bp.lifetime = p.lifetime;
+                return bp;
+            });
+
+            stars = snap.stars.map(s => {
+                const ns = new Star();
+                ns.x = s.x; ns.y = s.y; ns.z = s.z; ns.brightness = s.brightness;
+                return ns;
+            });
+
+            events = JSON.parse(JSON.stringify(snap.events));
+
+            historyIndex = index;
+            updateCameraDisplay();
+            return true;
+        }
+
+        function updateCameraDisplay() {
+            const cameraDisplay = document.getElementById('cameraPosition');
+            if (cameraDisplay) {
+                cameraDisplay.textContent = `Camera: X: ${cameraX.toFixed(1)} Y: ${cameraY.toFixed(1)} Z: ${cameraZ.toFixed(1)}`;
+            }
+        }
+
+        // Advance the simulation by a given delta (positive moves objects toward camera)
+        function stepSimulation(delta, recordHistory = false) {
+            // Update camera
+            cameraZ += delta;
+
+            // Update wires and remove ones that are behind camera
+            for (let i = wires.length - 1; i >= 0; i--) {
+                wires[i].update(delta);
+                if (wires[i].z < -500) {
+                    wires.splice(i, 1); // Remove wire that's behind camera
+                }
+            }
+
+            // Generate new wires to maintain density
+            while (wires.length < wireDensity) {
+                wires.push(new Wire());
+            }
+
+            // Update stars
+            for (let star of stars) {
+                star.update(delta);
+            }
+
+            // Generate event camera data
+            generateEvents();
+
+            // Record history snapshot if requested (only when moving forward)
+            if (recordHistory && delta > 0) {
+                pushHistorySnapshot();
+            }
+        }
+
+        function draw() {
+            background(0); // Solid black background - no motion blur
+
+            // Handle WASD camera movement regardless of playback (so user can pan)
+            handleKeyboard();
+            updateCameraDisplay();
+
+            // Playback behavior
+            if (playback === 1) {
+                // playing forward: record history so we can rewind exactly
+                stepSimulation(speed, true);
+            } else if (playback === -1) {
+                // playing backward: prefer restoring history snapshots when available
+                if (historyIndex > 0) {
+                    restoreSnapshot(historyIndex - 1);
+                } else {
+                    // fallback: best-effort backward simulation
+                    stepSimulation(-speed, false);
+                }
+            }
+            
+            // Draw stars first (background)
+            if (starCount > 0) {
+                push();
+                translate(width/2, height/2);
+                for (let star of stars) {
+                    star.display();
+                }
+                pop();
+            }
+            
+            // Draw wires (foreground)
+            push();
+            translate(width/2, height/2);
+            for (let wire of wires) {
+                wire.display();
+            }
+            // Draw broken points
+            for (let i = brokenPoints.length - 1; i >= 0; i--) {
+                if (!brokenPoints[i].update(playback === 1 ? speed : -speed)) {
+                    brokenPoints.splice(i, 1); // Remove dead particles
+                } else {
+                    brokenPoints[i].display();
+                }
+            }
+
+            // Draw targeting scope; compute and draw highlights if laser is active
+            if (showScope) {
+                drawScope();
+            }
+            if (laserActive) {
+                // compute highlights for points near the laser beams and break them off
+                computeLaserHighlights();
+                // draw laser beams on top
+                drawLaser();
+            }
+            pop();
+        }
+
+        function getLaserBeams() {
+            const halfW = width / 2;
+            const halfH = height / 2;
+            const inset = 8;
+            // Only get coordinates for bottom corners
+            const blx = -halfW + inset; // bottom left x
+            const bly = halfH - inset;  // bottom left y
+            const brx = halfW - inset;  // bottom right x
+            const bry = halfH - inset;  // bottom right y
+            // Target is at center (0,0)
+            return [
+                {x1: blx, y1: bly, x2: 0, y2: 0}, // bottom left to center
+                {x1: brx, y1: bry, x2: 0, y2: 0}  // bottom right to center
+            ];
+        }
+
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            // compute distance from point P to segment AB
+            const vx = x2 - x1;
+            const vy = y2 - y1;
+            const wx = px - x1;
+            const wy = py - y1;
+            const c1 = vx * wx + vy * wy;
+            if (c1 <= 0) return Math.hypot(px - x1, py - y1);
+            const c2 = vx * vx + vy * vy;
+            if (c2 <= c1) return Math.hypot(px - x2, py - y2);
+            const b = c1 / c2;
+            const bx = x1 + b * vx;
+            const by = y1 + b * vy;
+            return Math.hypot(px - bx, py - by);
+        }
+
+        function computeLaserHighlights() {
+            laserHighlights = [];
+            const beams = getLaserBeams();
+            const scopeRadius = 60; // Match the scope circle radius
+
+            for (let wire of wires) {
+                if (wire.z <= 0) continue; // only visible wires
+
+                // build points along the wire same way display() does
+                let pts = [];
+                let removedIndices = new Set();
+                
+                if (randomSpacing) {
+                    for (let i = 0; i < pointsPerLine; i++) {
+                        let t = wire.tValues[i];
+                        let x = wire.x + (wire.endX - wire.x) * t;
+                        let y = wire.y + (wire.endY - wire.y) * t;
+                        let z = wire.z + (wire.endZ - wire.z) * t;
+                        pts.push({x, y, z, index: i});
+                    }
+                } else {
+                    for (let i = 0; i < pointsPerLine; i++) {
+                        let t = i / (pointsPerLine - 1);
+                        let x = wire.x + (wire.endX - wire.x) * t;
+                        let y = wire.y + (wire.endY - wire.y) * t;
+                        let z = wire.z + (wire.endZ - wire.z) * t;
+                        pts.push({x, y, z, index: i});
+                    }
+                }
+
+                for (let p of pts) {
+                    const scale = 200 / (p.z + 200);
+                    const sx = (p.x + cameraX) * scale;
+                    const sy = (p.y + cameraY) * scale;
+
+                    // Check if point is within scope radius first
+                    const distToCenter = Math.hypot(sx, sy);
+                    if (distToCenter <= scopeRadius) {
+                        for (let beam of beams) {
+                            const d = pointToSegmentDistance(sx, sy, beam.x1, beam.y1, beam.x2, beam.y2);
+                            if (d <= laserHitRadius) {
+                                // Calculate angle perpendicular to the laser beam for point velocity
+                                const beamAngle = atan2(beam.y2 - beam.y1, beam.x2 - beam.x1);
+                                const perpAngle = beamAngle + HALF_PI;
+                                
+                                // Create a broken point
+                                brokenPoints.push(new BrokenPoint(p.x, p.y, p.z, perpAngle));
+                                
+                                // Mark this point for removal from the wire
+                                removedIndices.add(p.index);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Remove the broken points from the wire's tValues array
+                if (removedIndices.size > 0) {
+                    wire.tValues = wire.tValues.filter((_, index) => !removedIndices.has(index));
+                }
+            }
+        }
+
+        function drawHighlights() {
+            if (!laserHighlights || laserHighlights.length === 0) return;
+            push();
+            noFill();
+            for (let h of laserHighlights) {
+                // size based on proximity
+                const size = map(h.dist, 0, laserHitRadius, 6, 2);
+                stroke(255, 255, 255, 200);
+                strokeWeight(1.5);
+                point(h.x, h.y);
+                // small ring
+                stroke(0, 255, 0, 200);
+                strokeWeight(1);
+                noFill();
+                ellipse(h.x, h.y, size, size);
+            }
+            pop();
+        }
+
+        function drawScope() {
+            // Draw a subtle circular scope with crosshairs at the center
+            push();
+            noFill();
+            stroke(0, 255, 0, 150);
+            strokeWeight(1);
+            ellipse(0, 0, 100, 100);
+
+            // Crosshairs
+            strokeWeight(0.8);
+            line(-60, 0, -12, 0);
+            line(12, 0, 60, 0);
+            line(0, -60, 0, -12);
+            line(0, 12, 0, 60);
+
+            // Small center dot
+            fill(0, 255, 0);
+            noStroke();
+            ellipse(0, 0, 4, 4);
+            pop();
+        }
+
+        function drawLaser() {
+            const now = millis();
+            const elapsed = now - laserStartTime;
+            if (elapsed > laserDuration) {
+                laserActive = false;
+                return;
+            }
+
+            // Laser fades out over duration
+            const alpha = map(elapsed, 0, laserDuration, 255, 0);
+            push();
+            stroke(laserColor[0], laserColor[1], laserColor[2], alpha);
+            strokeWeight(3);
+            // Draw laser beams from bottom corners to center
+            const halfW = width / 2;
+            const halfH = height / 2;
+            const inset = 8; // pull the beam slightly inside the edges
+
+            // bottom-left to center
+            const blx = -halfW + inset;
+            const bly = halfH - inset;
+            line(blx, bly, 0, 0);
+
+            // bottom-right to center
+            const brx = halfW - inset;
+            const bry = halfH - inset;
+            line(brx, bry, 0, 0);
+            pop();
+        }
+
+        function regenerateWires() {
+            wires = [];
+            // Generate initial set of wires
+            for (let i = 0; i < wireDensity; i++) {
+                wires.push(new Wire());
+            }
+        }
+
+        function regenerateStars() {
+            stars = [];
+            for (let i = 0; i < starCount; i++) {
+                stars.push(new Star());
+            }
+        }
+
+        function resetCamera() {
+            cameraX = 0;
+            cameraY = 0;
+            cameraZ = 0;
+            rotationX = 0;
+            rotationY = 0;
+            updateCameraDisplay();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            if (isPaused) {
+                // pause playback
+                playback = 0;
+                setPauseIcon('play');
+            } else {
+                // resume forward playback by default
+                playback = 1;
+                setPauseIcon('pause');
+            }
+        }
+
+        function playBackward() {
+            isPaused = false;
+            playback = -1;
+            setPauseIcon('pause');
+        }
+
+        function stepForward() {
+            // If there is a future snapshot (we are at an earlier history index), restore it
+            if (historyIndex < history.length - 1) {
+                restoreSnapshot(historyIndex + 1);
+            } else {
+                // Otherwise advance simulation and record snapshot
+                stepSimulation(stepDelta, true);
+            }
+            // keep paused so user can step repeatedly
+            isPaused = true;
+            playback = 0;
+            setPauseIcon('play');
+        }
+
+        function stepBackward() {
+            // If we have a previous snapshot, restore it for exact rewind
+            if (historyIndex > 0) {
+                restoreSnapshot(historyIndex - 1);
+            } else {
+                // Best-effort: step simulation backward without exact restore
+                stepSimulation(-stepDelta, false);
+            }
+            isPaused = true;
+            playback = 0;
+            setPauseIcon('play');
+        }
+
+        function playForward() {
+            isPaused = false;
+            playback = 1;
+            setPauseIcon('pause');
+        }
+
+        function setPauseIcon(mode) {
+            // mode: 'play' or 'pause'
+            const svg = document.getElementById('pauseIcon');
+            if (!svg) return;
+            if (mode === 'play') {
+                svg.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            } else {
+                svg.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+            }
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+
+        function keyPressed() {
+            // Spacebar to fire laser
+            if (key === ' ' || keyCode === 32) {
+                laserActive = true;
+                laserStartTime = millis();
+            }
+        }
+
+        function toggleScope() {
+            showScope = !showScope;
+        }
+
+        function saveFrame() {
+            // Save the current canvas as an image
+            saveCanvas('wire_field', 'png');
+        }
+
+        function generateEvents() {
+            // Generate event camera data based on wire movement
+            let currentTime = millis();
+            
+            for (let wire of wires) {
+                if (wire.z > 0) {
+                    // Calculate points along the wire
+                    let points = [];
+                    if (randomSpacing) {
+                        for (let i = 0; i < pointsPerLine; i++) {
+                            let t = wire.tValues[i];
+                            let x = wire.x + (wire.endX - wire.x) * t;
+                            let y = wire.y + (wire.endY - wire.y) * t;
+                            let z = wire.z + (wire.endZ - wire.z) * t;
+                            points.push({x, y, z});
+                        }
+                    } else {
+                        for (let i = 0; i < pointsPerLine; i++) {
+                            let t = i / (pointsPerLine - 1);
+                            let x = wire.x + (wire.endX - wire.x) * t;
+                            let y = wire.y + (wire.endY - wire.y) * t;
+                            let z = wire.z + (wire.endZ - wire.z) * t;
+                            points.push({x, y, z});
+                        }
+                    }
+                    
+                    // Project points to screen coordinates and generate events
+                    for (let point of points) {
+                        let scale = 200 / (point.z + 200);
+                        let screenX = Math.round(point.x * scale + width/2);
+                        let screenY = Math.round(point.y * scale + height/2);
+                        
+                        // Check if point is on screen
+                        if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height) {
+                            // Generate event with intensity based on speed and distance
+                            let intensity = Math.abs(speed) * (1 / (point.z + 1));
+                            if (intensity > eventThreshold) {
+                                events.push({
+                                    x: screenX,
+                                    y: screenY,
+                                    timestamp: currentTime,
+                                    intensity: intensity,
+                                    polarity: speed > 0 ? 1 : -1 // Positive for approaching, negative for receding
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Keep only recent events (last 5 seconds)
+            let cutoffTime = currentTime - 5000;
+            events = events.filter(event => event.timestamp > cutoffTime);
+        }
+
+        function saveEvents() {
+            // Save event camera data as JSON
+            let eventData = {
+                timestamp: millis(),
+                totalEvents: events.length,
+                events: events,
+                parameters: {
+                    speed: speed,
+                    wireDensity: wireDensity,
+                    wireLength: wireLength,
+                    pointsPerLine: pointsPerLine,
+                    starCount: starCount,
+                    rightAnglesOnly: rightAnglesOnly,
+                    randomSpacing: randomSpacing
+                }
+            };
+            
+            // Create and download JSON file
+            let dataStr = JSON.stringify(eventData, null, 2);
+            let dataBlob = new Blob([dataStr], {type: 'application/json'});
+            let url = URL.createObjectURL(dataBlob);
+            
+            let link = document.createElement('a');
+            link.href = url;
+            link.download = 'wire_field_events.json';
+            link.click();
+            
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
