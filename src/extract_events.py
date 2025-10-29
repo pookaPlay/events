@@ -37,7 +37,8 @@ if __name__ == '__main__':
     parser.add_argument('--output_events', type=str, default=None, help='Path to write numpy events (optional)')
     parser.add_argument('--delta_time_ms', '-dt', type=float, default=50.0, help='Time window (in milliseconds) to summarize events for visualization')
     parser.add_argument('--step_time_ms', '-st', type=float, default=50.0, help='Time window (in milliseconds) to summarize events for visualization')
-    parser.add_argument('--max_frames', type=int, default=500, help='Maximum number of frames to render')
+    parser.add_argument('--min_frame', type=int, default=0, help='Minimum frame to render')
+    parser.add_argument('--max_frame', type=int, default=500, help='Maximum number of frames to render')
     parser.add_argument('--display', action='store_true', help='Display frames interactively and wait for key press')
     parser.add_argument('--print_events', action='store_true', help='If displaying, print the current events to console')
     args = parser.parse_args()
@@ -66,9 +67,11 @@ if __name__ == '__main__':
 
     # Disable tqdm progress bar if displaying interactively to avoid console clutter
     for i, events in enumerate(tqdm(EventReader(event_filepath, dt, st), disable=args.display)):
-        if args.max_frames is not None and i >= args.max_frames:
+        if args.max_frame is not None and i >= args.max_frame:
             break
-        
+        if args.min_frame is not None and i < args.min_frame:
+            continue
+
         all_events[i] = events
 
         if args.display and args.print_events:
@@ -82,7 +85,7 @@ if __name__ == '__main__':
         
         # events where p == 1
         # pevents = events[events['p'] == 1]
-        print(f"--- p events for frame {i} --- {len(events['p'])}")
+        print(f"frame {i} has {len(events['p'])} events")
 
         # t = events['t'] # 't' is not used in the render function
         img = render(x, y, p, height, width)

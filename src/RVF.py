@@ -31,43 +31,41 @@ class RVF:
 
         # Build the spatial index on the initial points
         if self.num_events > 0:
-            past_coords = np.stack((self.pastPoints['x'], self.pastPoints['y']), axis=1)
+            past_coords = np.stack((self.pastPoints['x'].astype(int), self.pastPoints['y'].astype(int)), axis=1)
             self.past_events_tree = cKDTree(past_coords)
         else:
             self.past_events_tree = None
 
     def Step(self, events):
-        print(f"Stepping with {events['x'].shape[0]} events")
+        self.num_events = events['x'].shape[0]
+        assert self.num_events == events['y'].shape[0]
+
+        print(f"Stepping with {self.num_events} events")
 
         total_neighbors = 0
 
-        if events['x'].shape[0] > 0 and self.past_events_tree is not None:            
+        if self.num_events > 0 and self.past_events_tree is not None:            
             # for each event 
-            for i in range(events['x'].shape[0]):
-                current_event_coord = (events['x'][i], events['y'][i])
+            for i in range(self.num_events):
+                current_event_coord = (int(events['x'][i]), int(events['y'][i]))
+
                 indices_of_nearby_past_events = self.past_events_tree.query_ball_point(current_event_coord, r=self.search_radius)
                 total_neighbors += len(indices_of_nearby_past_events)
+                
+                nearby_past_events_x = self.pastPoints['x'][indices_of_nearby_past_events].astype(int)
+                nearby_past_events_y = self.pastPoints['y'][indices_of_nearby_past_events].astype(int)
+                dx = current_event_coord[0] - nearby_past_events_x
+                dy = current_event_coord[1] - nearby_past_events_y
+                # convert to polar
+                r = np.sqrt(dx**2 + dy**2)
+                theta = np.arctan2(dy, dx)
 
-            # query_ball_point finds all points within the given radius.
-            # It returns a list of indices corresponding to the points in self.pastPoints.
-
-            
-
-            # You can then access these nearby events:
-            #nearby_past_events_x = self.pastPoints['x'][indices_of_nearby_past_events]
-            #nearby_past_events_y = self.pastPoints['y'][indices_of_nearby_past_events]
-
-            #print(f"{current_event_coord} -> {nearby_past_events_x}, {nearby_past_events_y}")
-
-
-        # After processing the current events against self.pastPoints,
-        # update pastPoints for the next iteration.
         print(f"Total neighbors: {total_neighbors}") 
 
         self.pastPoints = copy.deepcopy(events)
 
         if self.pastPoints['x'].shape[0] > 0:
-            past_coords = np.stack((self.pastPoints['x'], self.pastPoints['y']), axis=1)
+            past_coords = np.stack((self.pastPoints['x'].astype(int), self.pastPoints['y'].astype(int)), axis=1)
             self.past_events_tree = cKDTree(past_coords)
         else:
             self.past_events_tree = None
