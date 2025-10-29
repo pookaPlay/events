@@ -2,16 +2,14 @@ import pickle
 import argparse
 import os
 from pathlib import Path
-
 import numpy as np
 import cv2
 from tqdm import tqdm
-
-from RVF import RVF
-from rvf_viz import render, render_flags
+from VecKM import  ExactVecKM
+import torch
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('rvf_events')
+    parser = argparse.ArgumentParser('veckm_events')
     parser.add_argument('event_file', type=str, help='Path to events.pkl file')
     args = parser.parse_args()
 
@@ -19,8 +17,6 @@ if __name__ == '__main__':
     
     height = 480
     width = 640
-
-    rvf = RVF()
 
     with open(event_filepath, 'rb') as f:
         all_events = pickle.load(f)
@@ -37,24 +33,18 @@ if __name__ == '__main__':
         for i in range(min_key, max_key + 1):
             if i not in all_events:
                 continue
-            events = all_events[i]
+            events = all_events[i]            
             
+            #torch.Tensor, (N, self.pt_dim), input point cloud. 
+            tevents = torch.from_numpy(np.stack((events['x'], events['y']), axis=1)).float()
+
+            vec = ExactVecKM(2, 256, 10.0)
+            event_features = vec.forward(tevents)
+
+            event_features = event_features.detach().numpy()
+
             if i == min_key:
-                rvf.Init(events)
-                img = render(events['x'], events['y'], events['p'], height, width)
-
-            else:
-                flagEvents = rvf.Step(events)
-                flagx = events['x'][flagEvents]
-                flagy = events['y'][flagEvents]                
-                img = render(events['x'], events['y'], events['p'], height, width)
-                img = render_flags(img, flagx, flagy)
-
-            
-            #hist_img = plot_polar_histogram(single_histogram, rvf.max_radius, title=f"Velocity")
-            #cv2.imshow('Polar Histogram', hist_img)
-
-            cv2.imshow('Event Visualization', img)            
+                past_event_features = event_features
             
             key = cv2.waitKey(0) # Wait 1ms, allows for animation
             if key == ord('q'): # Press 'q' to quit the display loop
