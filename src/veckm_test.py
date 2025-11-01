@@ -157,57 +157,61 @@ if __name__ == '__main__':
         cv2.namedWindow(title, cv2.WINDOW_AUTOSIZE)
         cv2.imshow(title, img)
 
+    def calculate_and_print_similarity(set_a, set_b, name_a, name_b, enc_dim):
+        
+        ## shuffle the order of set b
+        #perm = torch.randperm(set_b.shape[0])
+        #set_b = set_b[perm]
+        
+        # This implements Strategy 2: a correspondence-free comparison (Chamfer-like).
+        # For each point in set_a, we find its best match in set_b.
+
+        # 1. Compute the pairwise similarity matrix between all points in A and all points in B.
+        # The shape will be (num_points_a, num_points_b).
+        # einsum 'ai,bi->ab' computes the dot product between each vector in a and each in b.
+        pairwise_dot_products = torch.einsum('ai,bi->ab', set_a.conj(), set_b)
+        pairwise_similarity = torch.abs(pairwise_dot_products) / enc_dim
+
+        # 2. For each point in set_a, find the similarity of its best match in set_b.
+        # We do this by taking the maximum value along each row of the similarity matrix.
+        best_matches_for_a, _ = torch.max(pairwise_similarity, dim=1)
+
+        # 3. The overall similarity is the average of these best-match scores.
+        similarity = best_matches_for_a
+
+        avg_similarity = torch.mean(similarity)
+        print(f"Average similarity between {name_a} and {name_b}: {avg_similarity.item():.4f}")
+
     # do some comparison of features      #= event_features[pici].detach().numpy()
-    set1 = event_features[0] # Features for the first circle
-    set2 = event_features[3] # Features for the second, smaller circle
-    set3 = event_features[4] # Features for the second, smaller circle
-    set_rand = event_features[1] # Features for the random points    
-    set_grid = event_features[2] # Features for the grid points
-    set_square = event_features[5] # Features for the square points
+    feature_sets = {
+        "circle 1": event_features[0],
+        "random points": event_features[1],
+        "grid points": event_features[2],
+        "circle 2": event_features[3],
+        "circle 3": event_features[4],
+        "square": event_features[5]
+    }
+    enc_dim = feature_sets["circle 1"].shape[1]
     
-    enc_dim = set1.shape[1]
+    calculate_and_print_similarity(feature_sets["circle 1"], feature_sets["circle 2"], "circle 1", "circle 2", enc_dim)
+    calculate_and_print_similarity(feature_sets["circle 1"], feature_sets["circle 3"], "circle 1", "circle 3", enc_dim)
+    calculate_and_print_similarity(feature_sets["circle 2"], feature_sets["circle 3"], "circle 2", "circle 3", enc_dim)
+    calculate_and_print_similarity(feature_sets["circle 1"], feature_sets["random points"], "circle 1", "random points", enc_dim)
+    calculate_and_print_similarity(feature_sets["circle 1"], feature_sets["grid points"], "circle 1", "grid points", enc_dim)
+    calculate_and_print_similarity(feature_sets["circle 1"], feature_sets["square"], "circle 1", "square", enc_dim)
+    calculate_and_print_similarity(feature_sets["grid points"], feature_sets["square"], "grid points", "square", enc_dim)
 
-    # Compare the two circles using the dot product.
-    # We use einsum for a batched dot product: sum(v1_i.conj() * v2_i) for each point i
-    # This computes the dot product for each corresponding pair of feature vectors.
-    # The feature vectors from VecKM are normalized to sqrt(enc_dim).
-    # So, the product of their norms is enc_dim.
-    dot_products_circles = torch.einsum('...i,...i->...', set1.conj(), set2)
-    similarity_circles = torch.abs(dot_products_circles) / enc_dim
-    avg_similarity_circles = torch.mean(similarity_circles)
-    print(f"Average similarity between circle 1 and circle 2: {avg_similarity_circles.item():.4f}")
-
-    dot_products_circles = torch.einsum('...i,...i->...', set1.conj(), set3)
-    similarity_circles = torch.abs(dot_products_circles) / enc_dim
-    avg_similarity_circles = torch.mean(similarity_circles)
-    print(f"Average similarity between circle 1 and circle 3: {avg_similarity_circles.item():.4f}")
-
-    dot_products_circles = torch.einsum('...i,...i->...', set2.conj(), set3)
-    similarity_circles = torch.abs(dot_products_circles) / enc_dim
-    avg_similarity_circles = torch.mean(similarity_circles)
-    print(f"Average similarity between circle 2 and circle 3: {avg_similarity_circles.item():.4f}")
-
-    # For contrast, let's compare the first circle to the set of random points.
-    # We expect a much lower similarity score here.
-    dot_products_rand = torch.einsum('...i,...i->...', set1.conj(), set_rand)
-    similarity_rand = torch.abs(dot_products_rand) / enc_dim
-    avg_similarity_rand = torch.mean(similarity_rand)
-    print(f"Average similarity between circle 1 and random points: {avg_similarity_rand.item():.4f}")
-
-    dot_products_grid = torch.einsum('...i,...i->...', set1.conj(), set_grid)
-    similarity_grid = torch.abs(dot_products_grid) / enc_dim
-    avg_similarity_grid = torch.mean(similarity_grid)
-    print(f"Average similarity between circle 1 and grid points: {avg_similarity_grid.item():.4f}")
-
-    dot_products_square = torch.einsum('...i,...i->...', set1.conj(), set_square)
-    similarity_square = torch.abs(dot_products_square) / enc_dim
-    avg_similarity_square = torch.mean(similarity_square)
-    print(f"Average similarity between circle 1 and square points: {avg_similarity_square.item():.4f}")
-
-    dot_products_square = torch.einsum('...i,...i->...', set_grid.conj(), set_square)
-    similarity_square = torch.abs(dot_products_square) / enc_dim
-    avg_similarity_square = torch.mean(similarity_square)
-    print(f"Average similarity between square and grid points: {avg_similarity_square.item():.4f}")
+    # --- How similar are points on the SAME circle to each other? ---
+    set1 = feature_sets["circle 1"]
+    # Calculate the full pairwise similarity matrix (N x N) for the first circle.
+    pairwise_similarity_circle1 = torch.abs(torch.einsum('ai,bi->ab', set1.conj(), set1)) / enc_dim
+    # The diagonal of this matrix is 1.0 (self-similarity). We want the average of the off-diagonal elements.
+    N = set1.shape[0]
+    # Sum all elements and subtract the trace (sum of diagonal), then divide by the number of off-diagonal elements.
+    sum_off_diagonal = torch.sum(pairwise_similarity_circle1) - torch.trace(pairwise_similarity_circle1)
+    num_off_diagonal = N * (N - 1)
+    avg_self_similarity = sum_off_diagonal / num_off_diagonal
+    print(f"\nAverage self-similarity of points on circle 1: {avg_self_similarity.item():.4f}")
 
     key = cv2.waitKey(0) # Wait for a key press        
     cv2.destroyAllWindows()
