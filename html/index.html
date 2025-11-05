@@ -65,28 +65,28 @@
     <div id="controls">
         <div class="control-group">
             <label>Speed:</label>
-            <input type="range" id="speedSlider" min="0" max="20" value="5" step="0.5">
-            <span id="speedValue">5.0</span>
+            <input type="range" id="speedSlider" min="0" max="100" value="10" step="0.5">
+            <span id="speedValue">10.0</span>
         </div>
         <div class="control-group">
             <label>Wire Density:</label>
-            <input type="range" id="densitySlider" min="10" max="200" value="50" step="5">
-            <span id="densityValue">50</span>
+            <input type="range" id="densitySlider" min="1" max="200" value="10" step="5">
+            <span id="densityValue">10</span>
         </div>
         <div class="control-group">
             <label>Wire Length:</label>
             <input type="range" id="lengthSlider" min="50" max="5000" value="500" step="10">
-            <span id="lengthValue">200</span>
+            <span id="lengthValue">500</span>
         </div>
         <div class="control-group">
             <label>Background Stars:</label>
-            <input type="range" id="starsSlider" min="0" max="1000" value="200" step="10">
-            <span id="starsValue">200</span>
+            <input type="range" id="starsSlider" min="0" max="5000" value="500" step="10">
+            <span id="starsValue">500</span>
         </div>
         <div class="control-group">
             <label>Points per Line:</label>
             <input type="range" id="lineStyleSlider" min="2" max="50" value="10" step="1">
-            <span id="lineStyleValue">10</span>
+            <span id="lineStyleValue">4</span>
         </div>
         <div class="control-group">
             <label>Right Angles Only:</label>
@@ -102,7 +102,7 @@
         </div>
         <div class="control-group">
             <label>Show Scope:</label>
-            <input type="checkbox" id="showScopeCheckbox" checked>
+            <input type="checkbox" id="showScopeCheckbox">
         </div>
         <div class="control-group">
             <button class="icon-button" onclick="playBackward()" title="Play Backward" aria-label="Play Backward">
@@ -127,14 +127,17 @@
             </button>                                    
         </div>
         <div class="control-group">
-            <label style="margin-left:8px;">Step Size:</label>
-            <input id="stepSizeSlider" type="range" min="0.1" max="20" step="0.1" value="5">
-            <span id="stepSizeValue">5.0</span>
+            <label>Max Z:</label>
+            <input type="range" id="maxZSlider" min="0" max="10000" value="2000" step="10">
+            <span id="maxZValue">5000</span>
+        </div>
+        <div class="control-group">
+            <label>Save Events:</label>
+            <input type="checkbox" id="saveEventsCheckbox">
         </div>
         <div class="control-group">
             <button onclick="resetCamera()">Reset View</button>            
             <button onclick="saveFrame()">Save Image</button>
-            <button onclick="saveEvents()">Save Events</button>
         </div>
         <div class="control-group">
             <div id="cameraPosition" style="margin-bottom: 10px; font-family: monospace;">
@@ -154,8 +157,8 @@
         let wireDensity = 50;
         let wireLength = 200;
     let moveSpeed = 10; // Speed of WASD movement
-    let isPaused = false;
-    let playback = 1; // 1 = forward, -1 = backward, 0 = paused
+    let isPaused = true;
+    let playback = 0; // 1 = forward, -1 = backward, 0 = paused
         let rotationX = 0;
         let rotationY = 0;
         let starCount = 200;
@@ -165,19 +168,21 @@
         let showExtendedLines = false;
         let events = []; // Store event camera data
         let eventThreshold = 0.1; // Minimum change to trigger event
+        let maxZ = 2000; // Maximum Z value before saving events
+        let saveEventsEnabled = false; // Whether to accumulate and save events
+        let accumulatedFrames = []; // Store accumulated frames with events
         
     // History buffer for deterministic playback
     let history = []; // array of snapshots
     let historyIndex = -1; // current index in history
     const maxHistory = 2000; // max snapshot count to keep
-    let stepDelta = 5; // default delta for stepping (can be changed by slider)
 
     // Targeting scope and laser state
-    let showScope = true;
+    let showScope = false;
     let laserActive = false;
     let laserStartTime = 0;
     const laserDuration = 200; // ms
-    const laserColor = [0, 255, 0];
+    const laserColor = [255, 0, 0];
     const laserHitRadius = 8; // pixels
 
     // transient highlights computed when laser fires
@@ -302,6 +307,8 @@
                                 stroke(this.color);
                                 strokeWeight(this.thickness);
                                 point(screenX, screenY);
+                                // Add event for this point (convert to absolute screen coordinates)
+                                addEventToFrame(screenX + width/2, screenY + height/2, 1); // +1 for wire
                             }
                         }
                         
@@ -323,6 +330,9 @@
                             // Only draw if at least one point is in front of the camera
                             if (this.z > -200 || this.endZ > -200) {
                                 this.drawExtendedLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+                                // Add events for extended line endpoints (convert to absolute screen coordinates)
+                                addEventToFrame(startPoint.x + width/2, startPoint.y + height/2, 1); // +1 for wire
+                                addEventToFrame(endPoint.x + width/2, endPoint.y + height/2, 1); // +1 for wire
                             }
                         }
                     } else {
@@ -345,6 +355,8 @@
                                 stroke(this.color);
                                 strokeWeight(this.thickness);
                                 point(screenX, screenY);
+                                // Add event for this point (convert to absolute screen coordinates)
+                                addEventToFrame(screenX + width/2, screenY + height/2, 1); // +1 for wire
                             }
                         }
                         
@@ -366,6 +378,9 @@
                             // Only draw if at least one point is in front of the camera
                             if (this.z > -200 || this.endZ > -200) {
                                 this.drawExtendedLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+                                // Add events for extended line endpoints (convert to absolute screen coordinates)
+                                addEventToFrame(startPoint.x + width/2, startPoint.y + height/2, 1); // +1 for wire
+                                addEventToFrame(endPoint.x + width/2, endPoint.y + height/2, 1); // +1 for wire
                             }
                         }
                     }
@@ -456,6 +471,8 @@
                         stroke(this.brightness);
                         strokeWeight(1);
                         point(screenX, screenY);
+                        // Add event for this star (convert to absolute screen coordinates)
+                        addEventToFrame(screenX + width/2, screenY + height/2, -1); // -1 for star
                     }
                 }
             }
@@ -496,6 +513,8 @@
             document.getElementById('speedSlider').addEventListener('input', function(e) {
                 speed = parseFloat(e.target.value);
                 document.getElementById('speedValue').textContent = speed.toFixed(1);
+                // Keep keyboard pan speed (moveSpeed) in sync with speed
+                moveSpeed = speed;
             });
             
             document.getElementById('densitySlider').addEventListener('input', function(e) {
@@ -539,18 +558,21 @@
                 showScope = e.target.checked;
             });
 
-            // Step size slider
-            const stepSlider = document.getElementById('stepSizeSlider');
-            const stepVal = document.getElementById('stepSizeValue');
-            stepSlider.addEventListener('input', function(e) {
-                stepDelta = parseFloat(e.target.value);
-                stepVal.textContent = stepDelta.toFixed(1);
-                // Keep keyboard pan speed (moveSpeed) in sync with step size
-                moveSpeed = stepDelta;
+            document.getElementById('maxZSlider').addEventListener('input', function(e) {
+                maxZ = parseFloat(e.target.value);
+                document.getElementById('maxZValue').textContent = Math.round(maxZ);
             });
 
-            // Initialize moveSpeed to the slider's default value
-            moveSpeed = parseFloat(stepSlider.value);
+            document.getElementById('saveEventsCheckbox').addEventListener('change', function(e) {
+                saveEventsEnabled = e.target.checked;
+                if (saveEventsEnabled) {
+                    // Reset accumulated frames when starting to save
+                    accumulatedFrames = [];
+                }
+            });
+
+            // Initialize moveSpeed to the speed slider's default value
+            moveSpeed = speed;
 
             // Push initial snapshot
             pushHistorySnapshot();
@@ -673,6 +695,11 @@
         function draw() {
             background(0); // Solid black background - no motion blur
 
+            // Clear frame events at start of each frame if saving is enabled
+            if (saveEventsEnabled) {
+                currentFrameEvents = [];
+            }
+
             // Handle WASD camera movement regardless of playback (so user can pan)
             handleKeyboard();
             updateCameraDisplay();
@@ -727,6 +754,27 @@
                 drawLaser();
             }
             pop();
+
+            // Accumulate frame events if saving is enabled
+            if (saveEventsEnabled && playback === 1) {
+                // Add current frame to accumulated frames
+                accumulatedFrames.push({
+                    z: cameraZ,
+                    events: [...currentFrameEvents] // Copy the events array
+                });
+
+                // Check if Z exceeds maxZ - if so, save and stop
+                if (cameraZ > maxZ) {
+                    saveAccumulatedEvents();
+                    // Stop playing
+                    isPaused = true;
+                    playback = 0;
+                    setPauseIcon('play');
+                    // Disable save events checkbox
+                    saveEventsEnabled = false;
+                    document.getElementById('saveEventsCheckbox').checked = false;
+                }
+            }
         }
 
         function getLaserBeams() {
@@ -944,7 +992,7 @@
                 restoreSnapshot(historyIndex + 1);
             } else {
                 // Otherwise advance simulation and record snapshot
-                stepSimulation(stepDelta, true);
+                stepSimulation(speed, true);
             }
             // keep paused so user can step repeatedly
             isPaused = true;
@@ -958,7 +1006,7 @@
                 restoreSnapshot(historyIndex - 1);
             } else {
                 // Best-effort: step simulation backward without exact restore
-                stepSimulation(-stepDelta, false);
+                stepSimulation(-speed, false);
             }
             isPaused = true;
             playback = 0;
@@ -1005,6 +1053,8 @@
 
         function generateEvents() {
             // Generate event camera data based on wire movement
+            // This function is kept for backward compatibility but events are now
+            // captured during rendering when Save Events is enabled
             let currentTime = millis();
             
             for (let wire of wires) {
@@ -1058,12 +1108,29 @@
             events = events.filter(event => event.timestamp > cutoffTime);
         }
 
-        function saveEvents() {
-            // Save event camera data as JSON
+        // Accumulate events for current frame (called during rendering)
+        let currentFrameEvents = [];
+        
+        function addEventToFrame(screenX, screenY, polarity) {
+            if (saveEventsEnabled && playback === 1) {
+                // Add event with screen coordinates, Z as time, and polarity (wire=+1, star=-1)
+                currentFrameEvents.push({
+                    x: screenX,
+                    y: screenY,
+                    t: cameraZ, // Use Z as the time value
+                    p: polarity // +1 for wire, -1 for star
+                });
+            }
+        }
+
+        function saveAccumulatedEvents() {
+            // Save accumulated frame events as JSON
             let eventData = {
                 timestamp: millis(),
-                totalEvents: events.length,
-                events: events,
+                maxZ: maxZ,
+                totalFrames: accumulatedFrames.length,
+                totalEvents: accumulatedFrames.reduce((sum, frame) => sum + frame.events.length, 0),
+                frames: accumulatedFrames,
                 parameters: {
                     speed: speed,
                     wireDensity: wireDensity,
@@ -1071,7 +1138,8 @@
                     pointsPerLine: pointsPerLine,
                     starCount: starCount,
                     rightAnglesOnly: rightAnglesOnly,
-                    randomSpacing: randomSpacing
+                    randomSpacing: randomSpacing,
+                    showExtendedLines: showExtendedLines
                 }
             };
             
@@ -1082,7 +1150,8 @@
             
             let link = document.createElement('a');
             link.href = url;
-            link.download = 'wire_field_events.json';
+            let timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            link.download = `wire_field_events_${timestamp}.json`;
             link.click();
             
             URL.revokeObjectURL(url);

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import numpy as np
 import cv2
-from VecKM import  ExactVecKM
+from VecKM import  ExactVecKM, get_adj_matrix
 import torch
 from rvf_viz import render
 
@@ -16,7 +16,9 @@ def calculate_corresponding_similarity(set_a, set_b, randperm = False):
 
     # permute set_b to test how invariant
     if randperm:
-        perm = torch.randperm(set_b.shape[0])
+        #perm = torch.randperm(set_b.shape[0])
+        # permutation for one next in sequence
+        perm = (torch.arange(set_b.shape[0]) + 100) % set_b.shape[0]
         set_b = set_b[perm]
 
     # Calculate dot product between corresponding vectors.
@@ -44,8 +46,9 @@ def calculate_pairwise_similarity(set_a, set_b):
     sum_off_diagonal = torch.sum(pairwise_similarity) - diag
     num_off_diagonal = N * (N - 1)
     avg_self_similarity = sum_off_diagonal / num_off_diagonal    
-    
-    return avg_self_similarity    
+    diag_self = diag / N
+    return avg_self_similarity, diag_self
+
 
 
 if __name__ == '__main__':
@@ -56,14 +59,16 @@ if __name__ == '__main__':
     
     height = 480
     width = 640
-    radius = 32
-    alpha = 6.0
+    radius = 64
+    alpha = 5.0
     
-    # neighborhood radius for veckm
-    nradius = 200
-
-    # number of points in dataset
-    N = 8
+    # Test multiple neighborhood radii to find optimal
+    # Also test different point densities
+    nradius_candidates = [3, 5, 8, 10, 15, 20]
+    embdim = 256
+    # Test with different numbers of points to see if sparsity helps
+    N_candidates = [100, 200, 500, 1000]
+    N = 200  # Start with moderate density
     
     # Generate synthetic event data 
     # Events are 2d points (x,y) 
@@ -85,6 +90,7 @@ if __name__ == '__main__':
     
     # Generate synthetic event data 
     # for points drawn uniformly at random across the image
+    np.random.seed(42)  # For reproducibility
     rand_x_coords = np.random.randint(0, width, N)
     rand_y_coords = np.random.randint(0, height, N)
 
@@ -93,40 +99,41 @@ if __name__ == '__main__':
     events[1]['y'] = rand_y_coords.astype(np.int32)
     events[1]['p'] = np.ones(N, dtype=np.int32) # Polarity    
 
+    vec = ExactVecKM(2, embdim, radius, alpha)
     event_features = dict()
-
+    
     for pici in range(2):
-        
         tevents = torch.from_numpy(np.stack((events[pici]['x'], events[pici]['y']), axis=1)).float()    
-        # The radius must be large enough to find neighbors. For the 5x5 grid, points are ~160px apart.
-        vec = ExactVecKM(2, 64, 150.0, alpha)
         event_features[pici] = vec.forward(tevents)        
 
-        print(f"Event features shape: {event_features[pici].shape}")
-        # G = G / torch.norm(G, dim=-1, keepdim=True) * self.sqrt_d               # Complex(n, d)
-
         img = render(events[pici]['x'], events[pici]['y'], events[pici]['p'], height, width)
-        
-        title = f"Event {pici}"
+        title = f"Event {pici} (radius={radius})"
         cv2.namedWindow(title, cv2.WINDOW_AUTOSIZE)
         cv2.imshow(title, img)
 
-        # do some comparison of features      #= event_features[pici].detach().numpy()
-
-    set1 = event_features[0]
-    set2 = event_features[1]
+    set1 = event_features[0]  # Circle
+    set2 = event_features[1]  # Noise
 
     enc_dim = set1.shape[1]
-    
+        
+    print(f"\n=== Similarity Comparisons ===")
+    print(f"Comparing circle to circle")
     corr1 = calculate_corresponding_similarity(set1, set1, randperm=False)
     corr2 = calculate_corresponding_similarity(set1, set1, randperm=True)        
-    pair = calculate_pairwise_similarity(set1, set1)    
-    print(f"S1-S1 Pairwise : {pair.item():.4f} and Corresponding : {corr1.item():.4f} and {corr2.item():.4f}")
+    pair, diag = calculate_pairwise_similarity(set1, set1)    
+    print(f"S1-S1 Pairwise: {pair.item():.4f} and {diag.item():.4f}     Corresponding: {corr1.item():.4f} and {corr2.item():.4f}")
 
+    print(f"\nComparing circle to uniform") 
     corr1 = calculate_corresponding_similarity(set1, set2, randperm=False)
     corr2 = calculate_corresponding_similarity(set1, set2, randperm=True)        
-    pair = calculate_pairwise_similarity(set1, set2)    
-    print(f"S1-S2 Pairwise : {pair.item():.4f} and Corresponding : {corr1.item():.4f} and {corr2.item():.4f}")
+    pair, diag = calculate_pairwise_similarity(set1, set2)    
+    print(f"S1-S2 Pairwise : {pair.item():.4f} and {diag.item():.4f}    Corresponding : {corr1.item():.4f} and {corr2.item():.4f}")
+
+    print(f"\nComparing uniform to uniform") 
+    corr1 = calculate_corresponding_similarity(set2, set2, randperm=False)
+    corr2 = calculate_corresponding_similarity(set2, set2, randperm=True)        
+    pair, diag = calculate_pairwise_similarity(set2, set2)    
+    print(f"S1-S2 Pairwise : {pair.item():.4f} and {diag.item():.4f}    Corresponding : {corr1.item():.4f} and {corr2.item():.4f}")
 
     key = cv2.waitKey(0) # Wait for a key press        
     cv2.destroyAllWindows()
