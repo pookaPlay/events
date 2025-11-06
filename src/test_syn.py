@@ -30,8 +30,8 @@ def RenderImage(events, H = 480, W = 640):
                   
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('veckm_events')
-    parser.add_argument('--event_file', type=str, help='Path to events.pkl file', default='data/easy_one.json')
+    parser = argparse.ArgumentParser('test_syn')
+    parser.add_argument('--event_file', type=str, help='Path to events.json file', default='data/easy_one.json')
     args = parser.parse_args()
     event_filepath = Path(args.event_file)
     

@@ -5,6 +5,56 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import cv2
 
+def RenderSynImage(events, H = 1000, W = 1000):
+
+    img = np.full((H,W,3), fill_value=0,dtype='uint8')
+    #img = np.full((H,W,3), fill_value=255,dtype='uint8')
+    mask = np.zeros((H,W),dtype='int32')
+
+    # extract data from events
+    x = np.array([e['x'] for e in events], dtype=np.int32)
+    y = np.array([e['y'] for e in events], dtype=np.int32)    
+    pol = np.array([e['p'] for e in events], dtype=np.int32)
+        
+    mask1 = (x>=0)&(y>=0)&(W>x)&(H>y)
+    mask[y[mask1],x[mask1]]=pol[mask1]
+    #img[mask==0]=[255,255,255]
+    img[mask==0]=[0,0,0]
+    img[mask==-1]=[255,0,0]
+    img[mask==1]=[0,0,255]
+    return img
+
+def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
+    """
+    Renders events as points and their corresponding velocity peaks as arrows.
+
+    Args:
+        events: A list of event dictionaries, each with 'x' and 'y'.
+        peaks: A list of (value, radius, angle) tuples for each event.
+        H: Image height.
+        W: Image width.
+        scale: A scaling factor for the length of the velocity arrows.
+    """
+    img = np.full((H,W,3), fill_value=0,dtype='uint8')
+
+    for i, event in enumerate(events):
+        start_point = (int(event['x']), int(event['y']))
+
+        # Draw the event as a small circle
+        cv2.circle(img, start_point, radius=1, color=(0, 0, 255), thickness=-1) # Red dot for event
+
+        peak = peaks[i]
+        if peak is not None:
+            val, radius, angle = peak
+            arrow_length = radius * scale
+            end_point_x = int(start_point[0] + arrow_length * np.cos(angle))
+            end_point_y = int(start_point[1] + arrow_length * np.sin(angle))
+            end_point = (end_point_x, end_point_y)
+            cv2.arrowedLine(img, start_point, end_point, color=(0, 255, 0), thickness=1, tipLength=0.3)
+
+    return img
+
+
 def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.ndarray:
     assert x.size == y.size == pol.size
     assert H > 0

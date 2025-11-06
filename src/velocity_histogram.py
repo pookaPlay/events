@@ -93,12 +93,18 @@ class VelocityHistogram:
             self.clear()            
 
     def peak(self):
-        return np.max(self.histogram)
+        # get max value and index
+        val = np.max(self.histogram)
+        # get radius and angle
+        idx = np.unravel_index(np.argmax(self.histogram), self.histogram.shape)
+        radius = idx[0] * self.max_radius / self.num_radius_bins
+        angle = idx[1] * 2 * np.pi / self.num_angle_bins
+        
+        return val, radius, angle
+        
 
     def clear(self):
         """Resets the histograms to uniform."""
         # The histogram data structure, initialized to zeros
-        self.histogram = np.zeros((self.num_radius_bins, self.num_angle_bins), dtype=np.float64)
-
-        self.uniformValue = 1.0 / (self.num_radius_bins * self.num_angle_bins)
-        self.histogram.fill(self.uniformValue)
+        self.histogram = np.ones((self.num_radius_bins, self.num_angle_bins), dtype=np.float64)
+        self.normalize()
