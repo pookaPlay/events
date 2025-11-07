@@ -59,11 +59,18 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
             # The max possible value for 'val' depends on the histogram size, but we can normalize it for visualization.
             # Let's assume a reasonable upper bound for 'val' for good color mapping, e.g., 0.1.
             # You might need to tune this based on typical values you observe.
-            # expect max 0.4
+            
             norm_val = min(val, MAX_PEAK) / MAX_PEAK
             
             # Interpolate from red (low certainty) to green (high certainty) in BGR format
             color = (0, int(255 * norm_val), int(255 * (1 - norm_val)))
+
+            # --- Add a second visualization for 'val' ---
+            # Draw a circle around the event point whose radius is proportional to the peak value.
+            # This is visible even when the velocity radius is zero.
+            max_certainty_radius = 16  # Max radius of the certainty circle in pixels
+            certainty_radius = int(norm_val * max_certainty_radius)
+            cv2.circle(img, start_point, certainty_radius, color, thickness=1)
 
             arrow_length = radius * scale
             end_point_x = int(start_point[0] + arrow_length * np.cos(angle))

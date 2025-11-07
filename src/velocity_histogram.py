@@ -139,11 +139,47 @@ class VelocityHistogram:
         val = np.max(self.histogram)
         # get radius and angle
         idx = np.unravel_index(np.argmax(self.histogram), self.histogram.shape)
-        radius = idx[0] * self.max_radius / self.num_radius_bins
-        angle = idx[1] * 2 * np.pi / self.num_angle_bins
+        # Use the midpoint of the bin for a more accurate peak value
+        radius = (idx[0] + 0.5) * self.max_radius / self.num_radius_bins
+        angle = (idx[1] + 0.5) * 2 * np.pi / self.num_angle_bins
         
         return val, radius, angle
-        
+
+    def predict(self):
+        """
+        Estimates the mean velocity (radius, angle) using a weighted sum over the histogram.
+
+        Returns:
+            A tuple of (val, radius, angle) representing the expected velocity.
+            'val' is a measure of certainty, calculated as the magnitude of the mean resultant vector.
+        """
+        # Same as PredictNextLocation, create grids for bin centers
+        radius_vals = (np.arange(self.num_radius_bins) + 0.5) * (self.max_radius / self.num_radius_bins)
+        angle_vals = (np.arange(self.num_angle_bins) + 0.5) * (2 * np.pi / self.num_angle_bins)
+        radii_grid, angles_grid = np.meshgrid(radius_vals, angle_vals, indexing='ij')
+
+        # Convert polar velocities of each bin to Cartesian vectors
+        vx_grid = radii_grid * np.cos(angles_grid)
+        vy_grid = radii_grid * np.sin(angles_grid)
+
+        # Calculate the expected velocity by taking a weighted sum.
+        expected_vx = np.sum(vx_grid * self.histogram)
+        expected_vy = np.sum(vy_grid * self.histogram)
+
+        # Convert the expected Cartesian velocity back to polar coordinates
+        radius = np.sqrt(expected_vx**2 + expected_vy**2)
+        angle = np.arctan2(expected_vy, expected_vx)
+
+        # For 'val', we can use the magnitude of the resultant vector as a measure of certainty.
+        # A more complex but robust measure is the length of the mean resultant vector in circular statistics.
+        # For simplicity here, we'll find the value of the bin corresponding to the predicted velocity.
+        r_idx = np.clip(int(radius / self.max_radius * self.num_radius_bins), 0, self.num_radius_bins - 1)
+        a_idx = np.clip(int(np.mod(angle, 2 * np.pi) / (2 * np.pi) * self.num_angle_bins), 0, self.num_angle_bins - 1)
+        #val = self.histogram[r_idx, a_idx]
+        val = np.max(self.histogram)
+
+        return val, radius, angle
+
     def PredictNextLocation(self, loc):
         """
         Predicts the next location of a point based on histogram.

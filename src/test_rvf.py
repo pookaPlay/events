@@ -87,7 +87,7 @@ if __name__ == '__main__':
             event_peak = rvf.Step(frame['events'])
             shared_state['event_velocities'] = rvf.event_velocity
             shared_state['event_neighbors'] = rvf.event_neighbors
-            img = RenderEventImage(frame['events'], event_peak, height, width, scale=2.0)            
+            img = RenderEventImage(frame['events'], event_peak, height, width, scale=5.0)            
         
         while True:
             display_img = img.copy()

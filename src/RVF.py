@@ -97,7 +97,7 @@ class RVF:
                     # convert to polar
                     pr = np.sqrt(ndx**2 + ndy**2)
                     ptheta = np.arctan2(ndy, ndx)
-                    pweight = 1.0 - (pr / self.max_radius)
+                    pweight = max((1.0 - pr / self.max_radius), 0.0)
 
                     nvel = VelocityHistogram(self.num_radius_bins, self.num_angle_bins, self.max_radius)
                     nvel.add_events_normalize(r[ni], theta[ni])
@@ -108,9 +108,9 @@ class RVF:
                     nmod.multiply_alpha_normalize(nhist, self.alpha, nvel)
                                         
                     # When r[ni] is 0, weight is 1. When r[ni] is max_radius, weight is 0.
-                    weight = 1.0 - (r[ni] / self.max_radius)
-                    if ei == 6:
-                        print(f" Loc weight {weight} and predicted {pweight}")
+                    weight = max((1.0 - r[ni] / self.max_radius), 0.0)
+                    #if ei == 6:
+                    #    print(f" Loc weight {weight} and predicted {pweight}")
 
                     # Apply the weight to the histogram before adding it.
                     nmod.histogram *= pweight
@@ -118,7 +118,7 @@ class RVF:
 
                 self.event_velocity[ei].normalize()
                 #(val, radius, angle)
-                self.event_peak[ei] = self.event_velocity[ei].peak()
+                self.event_peak[ei] = self.event_velocity[ei].predict()                
                 
 
         print(f"  Avg # Neighbors: {total_neighbors/self.num_events}")        
