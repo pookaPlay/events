@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
-from RVF_Gaussian import RVF_Gaussian
+from RVF_Gaussian_Optimized import RVF_Gaussian_Optimized
 from rvf_viz import RenderSynImage, RenderEventImageGaussian
 
 if __name__ == '__main__':
@@ -26,7 +26,7 @@ if __name__ == '__main__':
         'closest_event_dist': float('inf')
     }
 
-    rvf = RVF_Gaussian(search_radius=16.0, init_var=1.0, proc_var=1.0, alpha=1.0)
+    rvf = RVF_Gaussian_Optimized(search_radius=16.0, init_var=1.0, proc_var=1.0, alpha=1.0)
 
     height = 1000
     width = 1000

@@ -3,7 +3,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 import cv2
 
-class RVF_Gaussian:
+class RVF_Gaussian_Optimized:
     def __init__(self, search_radius=8.0, init_var=1.0, proc_var=1.0, alpha=1.0):
         print(f"RVF")
         self.height = 1000
@@ -75,32 +75,33 @@ class RVF_Gaussian:
                 dx = current_event_coord[0] - nearby_past_events_x
                 dy = current_event_coord[1] - nearby_past_events_y                
 
-                # accumulate for RVF-PDA
-                mx = 0.0
-                my = 0.0
-                mv = 0.0
-                mw = 0.0
+                # Check if there are any neighbors before proceeding
+                if dx.shape[0] > 0:
+                    # Extract past means and variances for all nearby events
+                    nmeans_neighbors = self.past_means[indices_of_nearby_past_events] # (num_neighbors, 2)
+                    nvars_neighbors = self.past_vars[indices_of_nearby_past_events]   # (num_neighbors,)
 
-                for ni in range(dx.shape[0]):
-                    nmean = self.past_means[indices_of_nearby_past_events[ni]]
-                    nvar = self.past_vars[indices_of_nearby_past_events[ni]]
+                    # Vectorized calculations for all neighbors of the current event
+                    myvars_neighbors = self.var * nvars_neighbors / (nvars_neighbors + self.var)
 
-                    myvar = self.var * nvar / (nvar + self.var)
-                    myx = dx[ni] * myvar / self.var + nmean[0] * myvar / nvar
-                    myy = dy[ni] * myvar / self.var + nmean[1] * myvar / nvar
+                    # myx and myy are vectors (num_neighbors,)
+                    myx_neighbors = dx * myvars_neighbors / self.var + nmeans_neighbors[:, 0] * myvars_neighbors / nvars_neighbors
+                    myy_neighbors = dy * myvars_neighbors / self.var + nmeans_neighbors[:, 1] * myvars_neighbors / nvars_neighbors
                     
-                    # Use the specific neighbor's distance, not the whole array
-                    scale_factor = np.sqrt(dx[ni]**2 + dy[ni]**2) / self.var
-                    scale_factor += np.sqrt(nmean[0]*nmean[0] + nmean[1]*nmean[1]) / nvar
-                    scale_factor -= np.sqrt(myx*myx + myy*myy) / myvar                    
+                    # scale_factor is a vector (num_neighbors,)
+                    scale_factors_neighbors = np.sqrt(dx**2 + dy**2) / self.var
+                    scale_factors_neighbors += np.sqrt(nmeans_neighbors[:, 0]**2 + nmeans_neighbors[:, 1]**2) / nvars_neighbors
+                    scale_factors_neighbors -= np.sqrt(myx_neighbors**2 + myy_neighbors**2) / myvars_neighbors                    
 
-                    myw = 1.0 / (self.var + nvar) *  np.exp( -0.5 * scale_factor)
+                    myws_neighbors = 1.0 / (self.var + nvars_neighbors) *  np.exp( -0.5 * scale_factors_neighbors)
 
                     # Accumulate weighted values
-                    mx += myx * myw
-                    my += myy * myw
-                    mv += myvar * myw
-                    mw += myw
+                    mx = np.sum(myx_neighbors * myws_neighbors)
+                    my = np.sum(myy_neighbors * myws_neighbors)
+                    mv = np.sum(myvars_neighbors * myws_neighbors)
+                    mw = np.sum(myws_neighbors)
+                else:
+                    mx, my, mv, mw = 0.0, 0.0, 0.0, 0.0
 
                 # After iterating through all neighbors, if any were found,
                 # calculate the final mean and variance for the current event.
