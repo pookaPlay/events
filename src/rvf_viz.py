@@ -16,7 +16,10 @@ def RenderSynImage(events, H = 1000, W = 1000):
     y = np.array([e['y'] for e in events], dtype=np.int32)    
     pol = np.array([e['p'] for e in events], dtype=np.int32)
         
+    pol[pol==0]=-1
+
     mask1 = (x>=0)&(y>=0)&(W>x)&(H>y)
+
     mask[y[mask1],x[mask1]]=pol[mask1]
     #img[mask==0]=[255,255,255]
     img[mask==0]=[0,0,0]
@@ -35,6 +38,8 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
         W: Image width.
         scale: A scaling factor for the length of the velocity arrows.
     """
+    MAX_PEAK = 0.05
+
     img = np.full((H,W,3), fill_value=0,dtype='uint8')
 
     for i, event in enumerate(events):
@@ -46,11 +51,23 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
         peak = peaks[i]
         if peak is not None:
             val, radius, angle = peak
+
+            # --- Visualize Uncertainty (val) ---
+            # Map 'val' to a color. High val = high certainty = bright green. Low val = low certainty = yellow/red.
+            # The max possible value for 'val' depends on the histogram size, but we can normalize it for visualization.
+            # Let's assume a reasonable upper bound for 'val' for good color mapping, e.g., 0.1.
+            # You might need to tune this based on typical values you observe.
+            # expect max 0.4
+            norm_val = min(val, MAX_PEAK) / MAX_PEAK
+            
+            # Interpolate from red (low certainty) to green (high certainty) in BGR format
+            color = (0, int(255 * norm_val), int(255 * (1 - norm_val)))
+
             arrow_length = radius * scale
             end_point_x = int(start_point[0] + arrow_length * np.cos(angle))
             end_point_y = int(start_point[1] + arrow_length * np.sin(angle))
             end_point = (end_point_x, end_point_y)
-            cv2.arrowedLine(img, start_point, end_point, color=(0, 255, 0), thickness=1, tipLength=0.3)
+            cv2.arrowedLine(img, start_point, end_point, color=color, thickness=1, tipLength=0.3)
 
     return img
 

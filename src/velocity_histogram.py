@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import convolve
 
 class VelocityHistogram:
     """
@@ -21,9 +22,20 @@ class VelocityHistogram:
         self.num_angle_bins = num_angle_bins
         self.max_radius = float(max_radius)
         
+        self.smooth_radius = 3
+        self.smooth_angle = 3
+
+        # Create 1D Gaussian kernels for radius and angle
+        gauss_r = np.exp(-(np.linspace(-self.smooth_radius, self.smooth_radius, 2 * self.smooth_radius + 1) ** 2) / (2 * (self.smooth_radius/2) ** 2))
+        gauss_a = np.exp(-(np.linspace(-self.smooth_angle, self.smooth_angle, 2 * self.smooth_angle + 1) ** 2) / (2 * (self.smooth_angle/2) ** 2))
+
+        # Create a 2D kernel by taking the outer product
+        self.smooth_kernel = np.outer(gauss_r, gauss_a)
+
+        # The histogram data structure, initialized to zeros
         self.clear()
 
-    def add_events(self, radii: np.ndarray, angles: np.ndarray):
+    def add_events_normalize(self, radii: np.ndarray, angles: np.ndarray):
         """
         Add polar data points to the histogram.
 
@@ -71,26 +83,48 @@ class VelocityHistogram:
         np.add.at(self.histogram, (r_idx0_c, a_idx1_c), w01)
         np.add.at(self.histogram, (r_idx1_c, a_idx0_c), w10)
         np.add.at(self.histogram, (r_idx1_c, a_idx1_c), w11)
+        self.normalize()        
 
-        self.normalize()
-
-
-    def multiply(self, v1, v2):
+    def multiply_alpha_normalize(self, v1, alpha, v2):
         self.histogram = v1.histogram * v2.histogram
         self.normalize()
 
-    def add(self, v1, v2 = None):
-        if v2 is not None:
-            self.histogram = v1.histogram + v2.histogram
-            self.normalize()
-        else:
-            self.histogram = self.histogram + v1.histogram
+    def multiply_normalize(self, v1, v2):
+        self.histogram = v1.histogram * v2.histogram
+        self.normalize()
+
+    def multiply(self, v1, v2):
+        self.histogram = v1.histogram * v2.histogram        
+
+    def add_normalize(self, v1, v2):        
+        self.histogram = v1.histogram + v2.histogram
+        self.normalize()
+
+    def add(self, v1):
+        self.histogram = self.histogram + v1.histogram
 
     def normalize(self):
         if np.sum(self.histogram) > 1e-10:            
             self.histogram /= np.sum(self.histogram)
         else:
             self.clear()            
+
+    def smooth(self):
+        """
+        Applies a 2D convolution to smooth the histogram.
+        It handles the circular nature of the angle dimension by padding before convolution.
+        """
+        # The angle dimension is circular. We pad the histogram with wrapped angle data
+        # to ensure the convolution handles the edges correctly.
+        pad_width = self.smooth_angle // 2
+        padded_hist = np.pad(self.histogram, ((0, 0), (pad_width, pad_width)), mode='wrap')
+
+        # Perform the 2D convolution on the padded histogram
+        smoothed_padded_hist = convolve(padded_hist, self.smooth_kernel, mode='constant', cval=0.0)
+
+        # Remove the padding to get back to the original histogram size
+        self.histogram = smoothed_padded_hist[:, pad_width:-pad_width]
+        self.normalize()
 
     def peak(self):
         # get max value and index
@@ -102,7 +136,6 @@ class VelocityHistogram:
         
         return val, radius, angle
         
-
     def clear(self):
         """Resets the histograms to uniform."""
         # The histogram data structure, initialized to zeros

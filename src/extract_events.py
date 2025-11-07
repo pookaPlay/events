@@ -30,7 +30,7 @@ def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('RVF Events')
+    parser = argparse.ArgumentParser('extract_events')
     parser.add_argument('event_file', type=str, help='Path to events.h5 file')
     parser.add_argument('--output_dir', type=str, default=None, help='Path to directory to write PNG frames (optional)')
     parser.add_argument('--output_file', type=str, default=None, help='Path to write video file (optional)')

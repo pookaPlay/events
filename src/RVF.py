@@ -12,14 +12,19 @@ class RVF:
         self.width = 1000
         self.num_events = 0
         # Parameters for our velocity histograms
-        self.num_radius_bins = 8
+        self.num_radius_bins = 16
         self.num_angle_bins = 16
-        self.max_radius = 50.0  # max speed
+        self.max_radius = 16.0  # max speed
+        
+        self.alpha = 1
 
         self.pastPoints = dict()
         self.past_events_tree = None
         
         self.search_radius = self.max_radius
+    
+    def GetEventVelocity(self, ei):
+        return self.event_velocity[ei]
 
     def Init(self, events):
         self.num_events = len(events)
@@ -53,6 +58,7 @@ class RVF:
                                for _ in range(self.num_events)]
         # Use the peak for viz        
         self.event_peak = [None for _ in range(self.num_events)]
+        self.event_neighbors = [[] for _ in range(self.num_events)]
 
         total_neighbors = 0
         total_peaks = 0
@@ -65,10 +71,9 @@ class RVF:
                 int_event_coord = (int(events[i]['x']), int(events[i]['y']))
 
                 indices_of_nearby_past_events = self.past_events_tree.query_ball_point(int_event_coord, r=self.search_radius)
-                #print(f"Found {len(indices_of_nearby_past_events)} neighbors")
-                #print(indices_of_nearby_past_events)
-
+                
                 total_neighbors += len(indices_of_nearby_past_events)
+                self.event_neighbors[i] = indices_of_nearby_past_events
                 
                 nearby_past_events_x = np.array([self.pastPoints[i]['x'] for i in indices_of_nearby_past_events])
                 nearby_past_events_y = np.array([self.pastPoints[i]['y'] for i in indices_of_nearby_past_events])
@@ -81,11 +86,17 @@ class RVF:
 
                 for ni in range(r.shape[0]):
                     nhist = self.past_events_velocity[indices_of_nearby_past_events[ni]]      
+                    
+                    nhist.smooth()                    
+
                     nvel = VelocityHistogram(self.num_radius_bins, self.num_angle_bins, self.max_radius)
-                    nvel.add_events(r[ni], theta[ni])
+                    nvel.add_events_normalize(r[ni], theta[ni])
+                    nvel.smooth()
 
                     nmod = VelocityHistogram(self.num_radius_bins, self.num_angle_bins, self.max_radius)                    
-                    nmod.multiply(nvel, nhist)
+                    #nmod.multiply_normalize(nvel, nhist)
+                    nmod.multiply_alpha_normalize(nhist, self.alpha, nvel)
+
                     self.event_velocity[i].add(nmod)
 
                 self.event_velocity[i].normalize()
@@ -110,5 +121,5 @@ class RVF:
             self.past_events_tree = None
             self.past_events_velocity = None
 
-
         return self.event_peak
+    
