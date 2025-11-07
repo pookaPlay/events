@@ -35,6 +35,12 @@ class VelocityHistogram:
         # The histogram data structure, initialized to zeros
         self.clear()
 
+    def clear(self):
+        """Resets the histograms to uniform."""
+        # The histogram data structure, initialized to zeros
+        self.histogram = np.ones((self.num_radius_bins, self.num_angle_bins), dtype=np.float64)
+        self.normalize()
+
     def add_events_normalize(self, radii: np.ndarray, angles: np.ndarray):
         """
         Add polar data points to the histogram.
@@ -86,7 +92,9 @@ class VelocityHistogram:
         self.normalize()        
 
     def multiply_alpha_normalize(self, v1, alpha, v2):
-        self.histogram = v1.histogram * v2.histogram
+        # raise each element in histogram to the alpha power
+        self.histogram = np.power(v1.histogram, alpha)
+        self.histogram = self.histogram * v2.histogram
         self.normalize()
 
     def multiply_normalize(self, v1, v2):
@@ -136,8 +144,34 @@ class VelocityHistogram:
         
         return val, radius, angle
         
-    def clear(self):
-        """Resets the histograms to uniform."""
-        # The histogram data structure, initialized to zeros
-        self.histogram = np.ones((self.num_radius_bins, self.num_angle_bins), dtype=np.float64)
-        self.normalize()
+    def PredictNextLocation(self, loc):
+        """
+        Predicts the next location of a point based on histogram.
+
+        Args:
+            loc: The current (x, y) location of the point as a tuple or list.
+
+        Returns:
+            The predicted next (x, y) location as a tuple.
+        """
+        # 1. Create arrays representing the center radius and angle for each bin.
+        # The shape of each will be (num_radius_bins, num_angle_bins).
+        radius_vals = (np.arange(self.num_radius_bins) + 0.5) * (self.max_radius / self.num_radius_bins)
+        angle_vals = (np.arange(self.num_angle_bins) + 0.5) * (2 * np.pi / self.num_angle_bins)
+        
+        # Create a grid of radius and angle values for each bin in the histogram.
+        # `indexing='ij'` ensures the grid matches the histogram's (radius, angle) layout.
+        radii_grid, angles_grid = np.meshgrid(radius_vals, angle_vals, indexing='ij')
+
+        # 2. Convert the polar velocities of each bin to Cartesian vectors (vx, vy).
+        vx_grid = radii_grid * np.cos(angles_grid)
+        vy_grid = radii_grid * np.sin(angles_grid)
+
+        # 3. Calculate the expected velocity by taking a weighted sum.
+        # The histogram values are the weights. Since the histogram is normalized,
+        # this is the expected value of the velocity distribution.
+        expected_vx = np.sum(vx_grid * self.histogram)
+        expected_vy = np.sum(vy_grid * self.histogram)
+
+        # 4. Calculate the predicted next location by adding the expected velocity vector.
+        return (loc[0] + expected_vx, loc[1] + expected_vy)

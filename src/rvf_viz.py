@@ -38,7 +38,9 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
         W: Image width.
         scale: A scaling factor for the length of the velocity arrows.
     """
-    MAX_PEAK = 0.05
+    
+    MAX_PEAK = np.max([peak[0] for peak in peaks])
+    print(f"RenderEventIMage has max val of {MAX_PEAK}")
 
     img = np.full((H,W,3), fill_value=0,dtype='uint8')
 
