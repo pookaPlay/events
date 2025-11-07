@@ -15,5 +15,9 @@ Sensible time might be 1ms duration... ~15k events image (640x480 pixels)
 
 python ..\src\extract_events.py c:\data\events\interlaken_00\interlaken_00_c_events_right\events.h5 -dt 0.1 -st 1 --min_frame 200 --max_frame 500 --output_events test_events.pkl --display
 
-# Tests
+This is a different format to the js simulator so we convert with
+python test_events.py test_events.pkl => generates test_events.json
+
+python test_rvf.py test_events.json
+
 

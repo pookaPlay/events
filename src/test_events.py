@@ -63,7 +63,7 @@ if __name__ == '__main__':
             #    break
 
     # save json
-    with open('test_events.json', 'w') as fout:
+    with open('test_events_bak.json', 'w') as fout:
         json.dump(output_data, fout)
 
         

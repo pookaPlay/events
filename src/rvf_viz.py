@@ -80,6 +80,56 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
 
     return img
 
+def RenderEventImageGaussian(events, peaks, variances, H=1000, W=1000, scale=1.0):
+    """
+    Renders events as points and their corresponding Gaussian velocity estimates.
+
+    Args:
+        events: A list of event dictionaries, each with 'x' and 'y'.
+        peaks: A list of (weight, vx, vy) tuples for each event.
+        variances: A list of variance values for each event.
+        H: Image height.
+        W: Image width.
+        scale: A scaling factor for the length of the velocity arrows.
+    """
+    
+    # Filter out None peaks before calculating max
+    valid_peaks = [peak for peak in peaks if peak is not None]
+    if not valid_peaks:
+        # If no valid peaks, just draw events
+        img = np.full((H, W, 3), fill_value=0, dtype='uint8')
+        for event in events:
+            start_point = (int(event['x']), int(event['y']))
+            cv2.circle(img, start_point, radius=1, color=(0, 0, 255), thickness=-1)
+        return img
+
+    MAX_PEAK = np.max([peak[0] for peak in valid_peaks])
+    print(f"RenderEventImageGaussian has max weight of {MAX_PEAK}")
+
+    img = np.full((H,W,3), fill_value=0,dtype='uint8')
+
+    for i, event in enumerate(events):
+        start_point = (int(event['x']), int(event['y']))
+
+        # Draw the event as a small circle
+        cv2.circle(img, start_point, radius=1, color=(0, 0, 255), thickness=-1) # Red dot for event
+
+        peak = peaks[i]
+        if peak is not None and variances is not None:
+            weight, vx, vy = peak
+            variance = variances[i]
+            
+            norm_weight = min(weight, MAX_PEAK) / MAX_PEAK if MAX_PEAK > 0 else 0
+            color = (0, int(255 * norm_weight), int(255 * (1 - norm_weight)))
+
+            # Draw variance as a circle (radius is sqrt(variance) = std dev)
+            cv2.circle(img, start_point, int(np.sqrt(variance)), color, thickness=1)
+
+            # Draw mean velocity as an arrow
+            end_point = (int(start_point[0] + vx * scale), int(start_point[1] + vy * scale))
+            cv2.arrowedLine(img, start_point, end_point, color=color, thickness=1, tipLength=0.3)
+
+    return img
 
 def render(x: np.ndarray, y: np.ndarray, pol: np.ndarray, H: int, W: int) -> np.ndarray:
     assert x.size == y.size == pol.size
