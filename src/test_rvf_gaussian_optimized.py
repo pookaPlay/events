@@ -28,8 +28,8 @@ if __name__ == '__main__':
 
     rvf = RVF_Gaussian_Optimized(search_radius=16.0, init_var=1.0, proc_var=1.0, alpha=1.0)
 
-    height = 1000
-    width = 1000
+    height = 900
+    width = 900
 
     with open(event_filepath, 'r') as f:
         data = json.load(f)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
             img = RenderSynImage(frame['events'], height, width)
         else:
             event_peak = rvf.Step(frame['events'])
-            img = RenderEventImageGaussian(frame['events'], event_peak, rvf.new_vars, height, width, scale=5.0)            
+            img = RenderEventImageGaussian(frame['events'], event_peak, rvf.new_vars, height, width, scale=10.0)            
         
         while True:
             display_img = img.copy()

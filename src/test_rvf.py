@@ -59,8 +59,8 @@ if __name__ == '__main__':
 
     rvf = RVF()
 
-    height = 1000
-    width = 1000
+    height = 900
+    width = 900
 
     with open(event_filepath, 'r') as f:
         data = json.load(f)

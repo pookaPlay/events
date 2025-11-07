@@ -1,15 +1,14 @@
-# events
-Spatio temporal experiments
+# Spatial-Temporal Event Experiments
+====================================
+
 
 # DSEC dataset notes/updates
-============================
 conda install hdf5-plugin (for blosc) 
 import hdf5-plugin in eventreader 
 
 Manually patch scipy.video (abstract.py) to update for newer numpy: tostring() -> tobyte()
 
 # Cmds
-
 Minimum time for frame is about -dt 0.1  (ms) with about 1.5k events image (300k pixels)
 Sensible time might be 1ms duration... ~15k events image (640x480 pixels)
 

@@ -8,8 +8,6 @@ import cv2
 class RVF:
     def __init__(self):
         print(f"RVF")
-        self.height = 1000
-        self.width = 1000
         self.num_events = 0
         # Parameters for our velocity histograms
         self.num_radius_bins = 16
@@ -117,8 +115,8 @@ class RVF:
 
                 self.event_velocity[ei].normalize()
                 #(val, radius, angle)
-                #self.event_peak[ei] = self.event_velocity[ei].peak()                
-                self.event_peak[ei] = self.event_velocity[ei].predict()
+                self.event_peak[ei] = self.event_velocity[ei].peak()                
+                #self.event_peak[ei] = self.event_velocity[ei].predict()
                 
 
         print(f"  Avg # Neighbors: {total_neighbors/self.num_events}")        
