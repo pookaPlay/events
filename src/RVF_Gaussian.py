@@ -16,8 +16,9 @@ class RVF_Gaussian:
         self.var = proc_var        
         self.alpha = alpha
 
-        self.runSpatial = True
-        
+        self.runSpatial = False
+        self.runPDA = True
+
         self.pastPoints = dict()
         self.past_events_tree = None
                 
@@ -85,6 +86,8 @@ class RVF_Gaussian:
                     my = 0.0
                     mv = 0.0
                     mw = 0.0
+                    # RVF-NN
+                    bestw = 0.0
 
                     for ni in range(dx.shape[0]):
                         nmean = self.past_means[indices_of_nearby_past_events[ni]]
@@ -101,20 +104,34 @@ class RVF_Gaussian:
 
                         myw = 1.0 / (self.var + nvar) *  np.exp( -0.5 * scale_factor)
 
-                        # Accumulate weighted values
-                        mx += myx * myw
-                        my += myy * myw
-                        mv += myvar * myw
-                        mw += myw
+                        if self.runPDA:
+                            # Accumulate weighted values
+                            mx += myx * myw
+                            my += myy * myw
+                            mv += myvar * myw
+                            mw += myw
+                        else:
+                            if myw > mw:
+                                mw = myw
+                                mx = myx
+                                my = myy
+                                mv = myvar
 
                     # After iterating through all neighbors, if any were found,
                     # calculate the final mean and variance for the current event.
                     if mw > 0:
-                        self.new_means[ei, 0] = mx / mw
-                        self.new_means[ei, 1] = my / mw
-                        self.new_vars[ei] = mv / mw
-                        self.new_weights[ei] = mw / dx.shape[0]
-                        self.event_peak[ei] = (self.new_weights[ei], self.new_means[ei, 0], self.new_means[ei, 1])
+                        if self.runPDA:
+                            self.new_means[ei, 0] = mx / mw
+                            self.new_means[ei, 1] = my / mw
+                            self.new_vars[ei] = mv / mw
+                            self.new_weights[ei] = mw / dx.shape[0]
+                            self.event_peak[ei] = (self.new_weights[ei], self.new_means[ei, 0], self.new_means[ei, 1])
+                        else:
+                            self.new_means[ei, 0] = mx
+                            self.new_means[ei, 1] = my
+                            self.new_vars[ei] = mv
+                            self.new_weights[ei] = mw
+                            self.event_peak[ei] = (self.new_weights[ei], self.new_means[ei, 0], self.new_means[ei, 1])
                     else:
                         # Handle case with no neighbors
                         self.event_peak[ei] = None

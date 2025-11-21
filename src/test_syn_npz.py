@@ -39,10 +39,24 @@ if __name__ == '__main__':
     
     height = args.h
     width = args.w
-    with open(event_filepath, 'r') as f:
-        data = json.load(f)
-
-    totalFrames = data['totalFrames']
+    data = np.load(event_filepath)
+    print("Loaded data")
+    print("Keys in NPZ file:", data.files)
+    for key in data.files:
+        # ['evs_norm', 'ev_loc', 'ev']
+        eventData = data[key]
+        print(f"Shape of {key}: {eventData.shape}")
+    
+    event_loc = data['ev_loc']
+    event_norm = data['evs_norm']
+    event_label = data['ev']
+    print(f"Event 0: {event_loc[0]} with label {event_label[0]} and norm {event_norm[0]}")
+    
+    data.close()
+    
+    
+    #totalFrames = data['totalFrames']
+    totalFrames = 5
     print(f"Total frames: {totalFrames}")
     
     # print(f"{data['frames'][1]['events'][0]}")

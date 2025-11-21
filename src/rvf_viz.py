@@ -80,7 +80,7 @@ def RenderEventImage(events, peaks, H=1000, W=1000, scale=1.0):
 
     return img
 
-def RenderEventImageGaussian(events, peaks, variances, H=1000, W=1000, scale=1.0):
+def RenderEventImageGaussian(events, peaks, variances, H=1000, W=1000, scale=1.0, rvfThresh=0.8):
     """
     Renders events as points and their corresponding Gaussian velocity estimates.
 
@@ -117,20 +117,20 @@ def RenderEventImageGaussian(events, peaks, variances, H=1000, W=1000, scale=1.0
         peak = peaks[i]
         if peak is not None and variances is not None:
             weight, vx, vy = peak
-            # weight = variances[i]
             
-            norm_weight = min(weight, MAX_PEAK) / MAX_PEAK if MAX_PEAK > 0 else 0
-            color = (0, int(255 * norm_weight), int(255 * (1 - norm_weight)))
+            if weight > rvfThresh:                
+                norm_weight = min(weight, MAX_PEAK) / MAX_PEAK if MAX_PEAK > 0 else 0
+                color = (0, int(255 * norm_weight), int(255 * (1 - norm_weight)))
 
-            # Draw variance as a circle (radius is sqrt(variance) = std dev)
-            max_certainty_radius = 16  # Max radius of the certainty circle in pixels
-            weightScaled = max_certainty_radius * norm_weight
+                # Draw variance as a circle (radius is sqrt(variance) = std dev)
+                max_certainty_radius = 16  # Max radius of the certainty circle in pixels
+                weightScaled = max_certainty_radius * norm_weight
 
-            cv2.circle(img, start_point, int(weightScaled), color, thickness=1)
+                cv2.circle(img, start_point, int(weightScaled), color, thickness=1)
 
-            # Draw mean velocity as an arrow
-            end_point = (int(start_point[0] + vx * scale), int(start_point[1] + vy * scale))
-            cv2.arrowedLine(img, start_point, end_point, color=color, thickness=1, tipLength=0.3)
+                # Draw mean velocity as an arrow
+                end_point = (int(start_point[0] + vx * scale), int(start_point[1] + vy * scale))
+                cv2.arrowedLine(img, start_point, end_point, color=color, thickness=1, tipLength=0.3)
 
     return img
 
