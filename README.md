@@ -20,3 +20,5 @@ python test_events.py test_events.pkl => generates test_events.json
 python test_rvf.py test_events.json
 
 
+# Kalman filter example 
+Write a basic kalman filter with predict and update steps. Write a test for the kalman filter using 2d synthetic data (in time) with a noisy point moving across the screen. During the test I want to step through the data and visualize the prediction and associated uncertainty.
